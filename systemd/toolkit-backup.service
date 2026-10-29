@@ -1,0 +1,10 @@
+# Tạo bởi LinuxAdmin Toolkit — được kích hoạt bởi toolkit-backup.timer
+[Unit]
+Description=LinuxAdmin Toolkit: sao lưu hằng ngày
+Documentation=file://@TOOLKIT_DIR@/README.md
+
+[Service]
+Type=oneshot
+ExecStart=@TOOLKIT_DIR@/sysadmin.sh --no-color --yes backup run
+Nice=15
+IOSchedulingClass=idle

@@ -1,0 +1,32 @@
+# =============================================================================
+#  docker-compose.yml — dựng máy chủ mô phỏng technova-core-srv
+#    docker compose up -d --build
+#    ssh -p 2222 hung@localhost        (mật khẩu: ADMIN_PASSWORD bên dưới)
+#    sudo sysadmin --tui
+# =============================================================================
+services:
+  technova-core-srv:
+    build: .
+    image: technova/sysadmin-toolkit:1.0
+    container_name: technova-core-srv
+    hostname: technova-core-srv
+    environment:
+      ADMIN_USER: hung
+      ADMIN_PASSWORD: "TechNova@2026"   # ĐỔI mật khẩu này trước khi dùng
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "2222:22"
+    cap_add:
+      - SYS_NICE        # cho phép "monitor renice" hạ ưu tiên process của nhân viên
+    volumes:
+      - tk-backups:/var/backups/sysadmin-toolkit
+      - tk-config:/opt/sysadmin-toolkit/config
+      - tk-reports:/opt/sysadmin-toolkit/reports
+      - tk-logs:/opt/sysadmin-toolkit/logs
+    restart: unless-stopped
+
+volumes:
+  tk-backups:
+  tk-config:
+  tk-reports:
+  tk-logs:

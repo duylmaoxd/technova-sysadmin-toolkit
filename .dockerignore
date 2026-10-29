@@ -1,0 +1,6 @@
+logs/*
+reports/*
+config/msmtprc
+dist/
+.git
+*.tar.gz

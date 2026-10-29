@@ -1,0 +1,8 @@
+# Dữ liệu sinh ra khi chạy — không đưa lên git
+logs/*
+reports/*
+!logs/.gitkeep
+!reports/.gitkeep
+# Chứa mật khẩu SMTP
+config/msmtprc
+dist/

@@ -1,0 +1,13 @@
+# Tạo bởi LinuxAdmin Toolkit — sao lưu lúc 02:00 mỗi ngày
+[Unit]
+Description=LinuxAdmin Toolkit: sao lưu lúc 02:00 hằng ngày
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+RandomizedDelaySec=10min
+# Máy tắt lúc 02:00 thì chạy bù ngay khi khởi động lại
+Persistent=true
+Unit=toolkit-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+# Tạo bởi LinuxAdmin Toolkit — được kích hoạt bởi toolkit-monitor.timer
+[Unit]
+Description=LinuxAdmin Toolkit: kiểm tra CPU/RAM/Disk và gửi cảnh báo
+Documentation=file://@TOOLKIT_DIR@/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=@TOOLKIT_DIR@/sysadmin.sh --no-color alert check
+Nice=10

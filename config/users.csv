@@ -1,0 +1,11 @@
+# Danh sách nhân viên TechNova — dùng bởi: sysadmin users create / users demo
+# Cột: username,họ tên,phòng ban (nhóm phụ, nhiều nhóm ngăn cách bằng ;),shell,sudo (yes/no)
+#   dev = Lập trình viên · data = Data Analyst · qa = Tester
+# Dòng bắt đầu bằng # là chú thích. Có thể soạn bằng Excel rồi lưu dạng CSV.
+annv,Nguyen Van An,dev,/bin/bash,no
+binhtt,Tran Thi Binh,dev,/bin/bash,no
+cuonglv,Le Van Cuong,data,/bin/bash,no
+dungpt,Pham Thi Dung,data,/bin/bash,no
+emhd,Hoang Duc Em,qa,/bin/bash,no
+giangvt,Vu Thu Giang,qa;dev,/bin/bash,no
+hungnv,Nguyen Van Hung (Tech Lead),dev;data;qa,/bin/bash,yes
