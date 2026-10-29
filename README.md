@@ -27,7 +27,7 @@ Toolkit gom các công việc hằng ngày của anh vào **5 chức năng chín
 
 ### Cách A — Docker: dựng sẵn máy chủ `technova-core-srv` (nhanh nhất để demo)
 ```bash
-git clone https://github.com/<tài-khoản>/<tên-repo>.git && cd <tên-repo>
+git clone https://github.com/duylmaoxd/technova-sysadmin-toolkit.git && cd technova-sysadmin-toolkit
 docker compose up -d --build          # Ubuntu 24.04 + toolkit + cron/at + SSH server
 ssh -p 2222 hung@localhost            # mật khẩu: ADMIN_PASSWORD trong docker-compose.yml (nhớ đổi)
 sudo sysadmin --tui

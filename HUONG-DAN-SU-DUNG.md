@@ -22,8 +22,8 @@ sudo usermod -aG docker $USER                      # đăng xuất rồi đăng 
 
 ### Bước 2: Tải mã nguồn
 ```bash
-git clone https://github.com/<tài-khoản>/<tên-repo>.git
-cd <tên-repo>
+git clone https://github.com/duylmaoxd/technova-sysadmin-toolkit.git
+cd technova-sysadmin-toolkit
 ```
 
 ### Bước 3: Đổi mật khẩu quản trị
@@ -71,7 +71,7 @@ Hỗ trợ: **Ubuntu / Debian / Kali** (khuyên dùng Ubuntu Server 22.04/24.04)
 Có hai cách:
 ```bash
 # Cách 1: git
-git clone https://github.com/<tài-khoản>/<tên-repo>.git && cd <tên-repo>
+git clone https://github.com/duylmaoxd/technova-sysadmin-toolkit.git && cd technova-sysadmin-toolkit
 
 # Cách 2: file nén (tạo trên máy có mã nguồn bằng ./package.sh → dist/sysadmin-toolkit-1.0.0.tar.gz)
 scp dist/sysadmin-toolkit-1.0.0.tar.gz user@may-dich:~
