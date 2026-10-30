@@ -1,0 +1,11 @@
+# Tạo bởi LinuxAdmin Toolkit — báo cáo lúc 07:00 thứ Hai hằng tuần
+[Unit]
+Description=LinuxAdmin Toolkit: báo cáo tuần lúc 07:00 thứ Hai
+
+[Timer]
+OnCalendar=Mon *-*-* 07:00:00
+Persistent=true
+Unit=toolkit-report.service
+
+[Install]
+WantedBy=timers.target

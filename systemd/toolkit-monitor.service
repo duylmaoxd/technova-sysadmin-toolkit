@@ -1,6 +1,6 @@
 # Tạo bởi LinuxAdmin Toolkit — được kích hoạt bởi toolkit-monitor.timer
 [Unit]
-Description=LinuxAdmin Toolkit: kiểm tra CPU/RAM/Disk và gửi cảnh báo
+Description=LinuxAdmin Toolkit: kiểm tra tài nguyên, phát hiện tấn công và gửi cảnh báo
 Documentation=file://@TOOLKIT_DIR@/README.md
 After=network-online.target
 Wants=network-online.target

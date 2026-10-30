@@ -195,14 +195,16 @@ monitor_auth() {
     log_warn "Không có log SSH (chưa cài openssh-server, chưa có đăng nhập, hoặc cần quyền root)."
     return 0
   fi
-  fails=$(grep -cE 'Failed [a-z/-]+ for ' <<<"$data" || true)
+  local attempts
+  attempts=$(ssh_fail_attempts <<<"$data" || true)
+  fails=$(grep -c . <<<"$attempts" || true)
   header "Đăng nhập SSH thất bại (7 ngày): $fails lần"
   if ((fails > 0)); then
     printf '  %sTop IP thử đăng nhập:%s\n' "$C_BOLD" "$C_RESET"
-    { grep -E 'Failed [a-z/-]+ for ' <<<"$data" | grep -oE 'from [0-9a-fA-F:.]+' || true; } | awk '{ print $2 }' |
+    awk '{ print $1 }' <<<"$attempts" |
       sort | uniq -c | sort -rn | take "$n" | awk '{ printf "    %6d lần  %s\n", $1, $2 }'
     printf '  %sTên đăng nhập bị thử nhiều nhất:%s\n' "$C_BOLD" "$C_RESET"
-    { sed -nE 's/.*Failed [a-z/-]+ for (invalid user )?([^ ]+) from .*/\2/p' <<<"$data" || true; } |
+    awk '{ print $2 }' <<<"$attempts" |
       sort | uniq -c | sort -rn | take 5 | awk '{ printf "    %6d lần  %s\n", $1, $2 }'
   fi
   header "Đăng nhập thành công gần đây"
@@ -604,9 +606,11 @@ monitor_logcheck() {
   kv "Số dòng log hệ thống" "$(grep -c . <<<"$all" || true)"
 
   header "1. Đăng nhập SSH thất bại"
-  n=$(grep -cE 'Failed [a-z/-]+ for ' <<<"$auth" || true)
+  local attempts
+  attempts=$(ssh_fail_attempts <<<"$auth" || true)
+  n=$(grep -c . <<<"$attempts" || true)
   if ((n >= SSH_FAIL_THRESHOLD)); then status WARN "$n lần thất bại — top IP:"; elif ((n > 0)); then status INFO "$n lần thất bại — top IP:"; else status OK "Không có"; fi
-  ((n > 0)) && { _grep -E 'Failed [a-z/-]+ for ' <<<"$auth" | _grep -oE 'from [0-9a-fA-F:.]+' | awk '{ print $2 }' | _top 5; }
+  ((n > 0)) && { awk '{ print $1 }' <<<"$attempts" | _top 5; }
   m=$({ _grep -oE 'Invalid user [^ ]+' <<<"$auth" || true; } | awk '{ print $3 }' | sort -u | grep -c . || true)
   if ((m >= IDS_SPRAY_USERS)); then status WARN "$m tên đăng nhập KHÔNG tồn tại bị thử (dò tên user):"; { _grep -oE 'Invalid user [^ ]+' <<<"$auth" | awk '{ print $3 }' | _top 5; }; fi
 

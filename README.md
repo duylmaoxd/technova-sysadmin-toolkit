@@ -26,29 +26,32 @@ Toolkit gom các công việc hằng ngày của anh vào **5 chức năng chín
 |---|---|
 | Báo cáo (LaTeX → PDF, 29 trang) | [docs/bao-cao/bao-cao.pdf](docs/bao-cao/bao-cao.pdf) · mã nguồn `bao-cao.tex` · biên dịch lại bằng `docs/bao-cao/build.sh` |
 | Slide thuyết trình (16 slide, có ghi chú thuyết trình) | [docs/thuyet-trinh/LinuxAdmin-Toolkit-TechNova.pptx](docs/thuyet-trinh/LinuxAdmin-Toolkit-TechNova.pptx) |
-| Kịch bản demo & danh sách 73 test | [docs/KICH-BAN-DEMO.md](docs/KICH-BAN-DEMO.md) · script `tests/demo-test.sh` |
+| Kịch bản demo trên máy thật & danh sách 75 test | [docs/KICH-BAN-DEMO.md](docs/KICH-BAN-DEMO.md) · script `tests/demo-test.sh` |
 | Hướng dẫn sử dụng | [HUONG-DAN-SU-DUNG.md](HUONG-DAN-SU-DUNG.md) |
 
 ## 1. Cài đặt & chạy trên máy Linux khác
 
 📘 **Hướng dẫn chi tiết từng bước (tiếng Việt): [HUONG-DAN-SU-DUNG.md](HUONG-DAN-SU-DUNG.md)**
 
-### Cách A — Docker: dựng sẵn máy chủ `technova-core-srv` (nhanh nhất để demo)
+### Cách A — Cài trực tiếp lên máy Ubuntu thật (khuyên dùng)
+Toolkit quản trị **chính máy nó được cài**: user, process, log, tường lửa và systemd thật; máy khác SSH vào để quản trị từ xa.
 ```bash
 git clone https://github.com/duylmaoxd/technova-sysadmin-toolkit.git && cd technova-sysadmin-toolkit
+sudo ./install.sh --server            # cài gói + SSH, hỏi vài câu, bật 4 systemd timer, chụp baseline cho IDS
+sudo sysadmin alert setup-telegram    # nhận cảnh báo trên điện thoại
+sudo sysadmin backup cloud-setup      # (tuỳ chọn) Google Drive
+ssh hungnv@<IP máy chủ>               # từ laptop khác: quản trị từ xa (ở xa thì dùng Tailscale)
+```
+Chi tiết từng câu hỏi của `--server`, Tailscale và lưu ý khi dùng máy cá nhân: mục 1 của [HUONG-DAN-SU-DUNG.md](HUONG-DAN-SU-DUNG.md).
+
+### Cách B — Docker: thử nhanh và kiểm thử tự động
+Container **không phải máy chủ thật** (chỉ thấy user/process/log bên trong nó, không có systemd). Dùng để thử trong vài phút,
+chạy 75 test tự động, hoặc dự phòng khi demo.
+```bash
 docker compose up -d --build          # Ubuntu 24.04 + toolkit + cron/at + SSH server
 ssh -p 2222 hung@localhost            # mật khẩu: ADMIN_PASSWORD trong docker-compose.yml (nhớ đổi)
-sudo sysadmin --tui
-```
-Không dùng SSH thì vào thẳng container: `docker exec -it technova-core-srv sysadmin --tui`.
-Bản sao lưu, cấu hình, báo cáo và log được giữ trong volume Docker. Dừng bằng `docker compose down`.
-
-### Cách B — Cài trực tiếp lên máy chủ thật / máy ảo Ubuntu Server
-```bash
-# Mang mã nguồn sang bằng git clone, hoặc dùng file nén tạo bởi ./package.sh:
-tar xzf sysadmin-toolkit-1.0.0.tar.gz && cd sysadmin-toolkit
-sudo ./install.sh --deps              # cài vào /opt/sysadmin-toolkit, tạo lệnh "sysadmin" + gói phụ thuộc
-sudo sysadmin scheduler install       # bật tự động hoá: sao lưu, bảo dưỡng, cảnh báo, báo cáo
+docker run --rm --cap-add SYS_NICE --cap-add NET_ADMIN -v "$PWD/tests:/tests:ro" \
+  technova/sysadmin-toolkit:1.0 bash /tests/demo-test.sh --yes      # 75/75 PASS
 ```
 
 ### Cách C — Chạy tại chỗ, không cài
@@ -128,7 +131,7 @@ Phòng ban tương ứng với nhóm Linux: `dev` (lập trình viên), `data` (
 
 | # | Dấu hiệu | Mức |
 |---|---|---|
-| 1 | Dò mật khẩu SSH: ≥ 5 lần sai từ cùng một IP (`IDS_SSH_FAIL_PER_IP`) | WARN |
+| 1 | Dò mật khẩu SSH: ≥ 5 lần thử từ cùng một IP (`IDS_SSH_FAIL_PER_IP`) — bắt được cả khi máy chỉ cho đăng nhập bằng key | WARN |
 | 2 | Dò tên tài khoản (password spraying): ≥ 5 username không tồn tại bị thử | WARN |
 | 3 | **Đăng nhập thành công từ IP vừa dò mật khẩu** → nghi bị chiếm tài khoản | CRITICAL |
 | 4 | sudo sai mật khẩu nhiều lần · user không có trong sudoers cố dùng sudo | WARN / CRITICAL |
@@ -140,7 +143,7 @@ Phòng ban tương ứng với nhóm Linux: `dev` (lập trình viên), `data` (
 
 Có dấu hiệu mới thì toolkit gửi **một tin "[TẤN CÔNG]"** qua **Telegram và email**, kèm gợi ý xử lý.
 Mỗi dấu hiệu chỉ báo một lần trong 30 phút. Nếu bật `AUTO_BAN="yes"`, IP dò mật khẩu bị **chặn tự động**
-bằng `ufw` hoặc `iptables` (trừ các IP trong `IDS_WHITELIST`). Khi anh Hưng tự tạo user bằng toolkit,
+bằng `ufw` hoặc `iptables` (trừ các IP/dải mạng trong `IDS_WHITELIST`, ví dụ `192.168.1.0/24`). Khi anh Hưng tự tạo user bằng toolkit,
 baseline được cập nhật tự động nên không báo nhầm. Sau khi sửa cấu hình hợp lệ bằng tay, chạy `alert baseline`.
 
 Cách gửi cảnh báo:
@@ -182,7 +185,8 @@ Các lệnh khác: `list` · `verify <file>` · `restore <file> [thư mục]` ·
 | 07:00 thứ Hai | `monitor report` — báo cáo tuần |
 
 Các lệnh khác: `list` · `remove` · `add "<lịch>" "<lệnh>"` · **`explain "<biểu thức cron>"`** (giải thích bằng tiếng Việt) ·
-`at` / `at-list` / `at-remove` (hẹn chạy một lần) · `log` · `timers-install` / `timers-remove` (dùng systemd timer thay cho cron).
+`at` / `at-list` / `at-remove` (hẹn chạy một lần) · `log` · `timers-install` / `timers-remove`: 4 systemd timer
+(`toolkit-monitor`, `toolkit-backup`, `toolkit-maintenance`, `toolkit-report`) thay cho cron — đây là phần "tạo service riêng" của đề tài systemd.
 
 ---
 
@@ -272,7 +276,9 @@ Mỗi chức năng **tự khai báo** các action của nó (`register_module`, 
   - cài cron và chạy bảo dưỡng (đã xoá đúng file tạm cũ);
   - dọn demo.
 - **Docker**: build image, `docker compose up`, SSH vào cổng 2222 bằng tài khoản `hung`, rồi chạy `users create`, `monitor who`, `backup run` đều thành công.
-- **Kiểm thử tự động** `tests/demo-test.sh` trong container: **73/73 PASS**, gồm cả mô phỏng tấn công (dò mật khẩu, password spraying,
+- **Máy Ubuntu 24.04 có systemd thật** (PID 1, journald, ssh.service): `install.sh --server` chạy trọn vẹn; 4 timer tự kích hoạt đúng lịch;
+  IDS đọc journald, bắt dò mật khẩu cả kiểu có mật khẩu lẫn kiểu chỉ-key, tự chặn IP bằng iptables.
+- **Kiểm thử tự động** `tests/demo-test.sh` trong container: **75/75 PASS**, gồm cả mô phỏng tấn công (dò mật khẩu, password spraying,
   đăng nhập sau khi dò, tạo user UID 0, chạy file từ /tmp), chặn/bỏ chặn IP bằng iptables, và tải backup + log lên một
   "Google Drive" giả lập (remote rclone kiểu local).
 - **Gửi cảnh báo** được kiểm chứng bằng máy chủ Telegram API và SMTP giả lập: tin "[TẤN CÔNG]" liệt kê đủ 11 dấu hiệu, tới được cả hai kênh.

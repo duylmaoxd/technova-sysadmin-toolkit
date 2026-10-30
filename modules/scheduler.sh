@@ -23,7 +23,7 @@ register_action at        ""  "Hẹn chạy MỘT LẦN bằng at" "Thời đi�
 register_action at-list   ""  "Các công việc at đang chờ"
 register_action at-remove ""  "Huỷ một công việc at" "Mã công việc=@_pick_atjob"
 register_action log       ""  "Log thực thi của các job (cron.log của toolkit + log dịch vụ cron)" "Số dòng=30"
-register_action timers-install "rd" "Dùng systemd timer thay cron: cảnh báo 5 phút/lần + sao lưu hằng ngày"
+register_action timers-install "rd" "Dùng systemd timer thay cron (4 timer: cảnh báo 5 phút, sao lưu + log 02:00, bảo dưỡng 03:30, báo cáo thứ Hai)"
 register_action timers-remove  "rd" "Gỡ các systemd timer của toolkit"
 
 CRON_BEGIN="# >>> sysadmin-toolkit >>>"
@@ -344,6 +344,12 @@ scheduler_maintenance() {
 }
 
 # ------------------------------------------------------- SYSTEMD TIMER ---
+# Các systemd unit của toolkit — tương đương 5 job cron của "scheduler install"
+TK_TIMERS=(toolkit-monitor.timer toolkit-backup.timer toolkit-maintenance.timer toolkit-report.timer)
+TK_UNITS=()
+for _t in "${TK_TIMERS[@]}"; do TK_UNITS+=("${_t%.timer}.service" "$_t"); done
+unset _t
+
 scheduler_timers_install() {
   local u src
   require_root
@@ -355,13 +361,13 @@ scheduler_timers_install() {
   if [[ -n $(_cron_block) ]]; then
     log_warn "Crontab đã có lịch của toolkit — gỡ bằng '$PROG scheduler remove' để tránh chạy trùng."
   fi
-  for u in toolkit-monitor.service toolkit-monitor.timer toolkit-backup.service toolkit-backup.timer; do
+  for u in "${TK_UNITS[@]}"; do
     src="$TOOLKIT_DIR/systemd/$u"
     [[ -r $src ]] || die "Thiếu file mẫu $src"
     sed "s|@TOOLKIT_DIR@|$TOOLKIT_DIR|g" "$src" | write_file "/etc/systemd/system/$u" 644
   done
   run systemctl daemon-reload
-  run systemctl enable --now toolkit-monitor.timer toolkit-backup.timer
+  run systemctl enable --now "${TK_TIMERS[@]}"
   [[ $DRY_RUN == 1 ]] && return 0
   log_ok "Đã cài timer. Kiểm tra: systemctl list-timers 'toolkit-*'"
   systemctl list-timers 'toolkit-*' --no-pager || true
@@ -371,8 +377,8 @@ scheduler_timers_remove() {
   local u
   require_root
   need_systemd || return 1
-  run systemctl disable --now toolkit-monitor.timer toolkit-backup.timer 2>/dev/null || true
-  for u in toolkit-monitor.service toolkit-monitor.timer toolkit-backup.service toolkit-backup.timer; do
+  run systemctl disable --now "${TK_TIMERS[@]}" 2>/dev/null || true
+  for u in "${TK_UNITS[@]}"; do
     run rm -f "/etc/systemd/system/$u"
   done
   run systemctl daemon-reload

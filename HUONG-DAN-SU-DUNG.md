@@ -1,17 +1,102 @@
 # HƯỚNG DẪN SỬ DỤNG — LinuxAdmin Toolkit (TechNova Solutions)
 
-Tài liệu này hướng dẫn **từng bước** cách cài đặt và sử dụng toolkit trên một máy Linux bất kỳ.
-Có 3 cách chạy, tuỳ hoàn cảnh:
+Tài liệu này hướng dẫn **từng bước** cách triển khai và sử dụng toolkit.
 
 | Cách | Khi nào dùng | Mục |
 |---|---|---|
-| **A. Docker** | Muốn thử ngay, không đụng tới hệ thống thật. Dựng sẵn máy chủ giả lập `technova-core-srv` có SSH | [Mục 1](#1-cách-a--chạy-bằng-docker-khuyên-dùng-để-demo) |
-| **B. Cài trực tiếp** | Máy chủ / máy ảo Ubuntu Server thật (giống đề bài) | [Mục 2](#2-cách-b--cài-trực-tiếp-lên-máy-linux) |
+| **A. Cài trực tiếp lên máy Ubuntu thật** | **Khuyên dùng.** Toolkit quản trị chính máy đó: user, process, log, tường lửa, systemd thật. Máy khác SSH vào để quản trị từ xa | [Mục 1](#1-cách-a--cài-trực-tiếp-lên-máy-ubuntu-thật-khuyên-dùng) |
+| **B. Docker** | Thử nhanh không đụng tới hệ thống, chạy kiểm thử tự động, dự phòng khi demo | [Mục 2](#2-cách-b--docker-thử-nhanh-và-kiểm-thử-tự-động) |
 | **C. Chạy tại chỗ** | Chỉ xem thử, không cài | [Mục 3](#3-cách-c--chạy-tại-chỗ-không-cài) |
+
+Kịch bản demo trên máy thật: [docs/KICH-BAN-DEMO.md](docs/KICH-BAN-DEMO.md).
 
 ---
 
-## 1. Cách A — Chạy bằng Docker (khuyên dùng để demo)
+## 1. Cách A — Cài trực tiếp lên máy Ubuntu thật (khuyên dùng)
+
+Hỗ trợ **Ubuntu 22.04 / 24.04** (Server hoặc Desktop), Debian, và RHEL / Rocky / Fedora. Yêu cầu Bash ≥ 4.4.
+Máy này đóng vai `technova-core-srv`: nên là máy chuyên dùng (PC, laptop cũ) cắm điện và mạng liên tục.
+
+### Bước 1: Tải mã nguồn về máy chủ
+```bash
+sudo apt update && sudo apt install -y git
+git clone https://github.com/duylmaoxd/technova-sysadmin-toolkit.git
+cd technova-sysadmin-toolkit
+```
+
+### Bước 2: Triển khai bằng một lệnh
+```bash
+sudo ./install.sh --server
+```
+Lệnh này cài gói cần thiết (SSH server, cron, at, rclone, iptables...), chép toolkit vào `/opt/sysadmin-toolkit`,
+tạo lệnh `sysadmin`, rồi hỏi vài câu (Enter = giữ mặc định):
+
+| Câu hỏi | Mặc định | Tác dụng |
+|---|---|---|
+| Máy này CHUYÊN làm máy chủ? | `y` | `n` (máy cá nhân) → không sao lưu cả `/home`, tránh vượt 15 GB Google Drive |
+| Thư mục cần sao lưu | `/etc /home /srv/technova` | Ghi vào `BACKUP_SOURCES` |
+| IP / dải mạng tin cậy | `127.0.0.1 ::1` + IP bạn đang SSH vào + `100.64.0.0/10` nếu có Tailscale | Không bao giờ bị IDS chặn. Nhận cả dải mạng, ví dụ `192.168.1.0/24` |
+| Tự động chặn IP dò mật khẩu? | `y` | `AUTO_BAN=yes` |
+| Siết SSH? | `y` | Cấm root đăng nhập trực tiếp, tối đa 4 lần thử mỗi kết nối (`/etc/ssh/sshd_config.d/10-technova.conf`) |
+| Laptop: gập máy vẫn chạy? | `y` | Chỉ hỏi trên laptop; có hiệu lực sau lần khởi động lại |
+| Lập lịch bằng `timer` hay `cron` | `timer` | 4 systemd timer: kiểm tra + IDS mỗi 5 phút, sao lưu + log 02:00, bảo dưỡng 03:30, báo cáo 07:00 thứ Hai |
+
+Cuối cùng toolkit chụp **trạng thái chuẩn** cho hệ thống phát hiện tấn công.
+Muốn nhận hết mặc định mà không hỏi: `sudo ./install.sh --server --yes`.
+
+### Bước 3: Nối kênh cảnh báo, Google Drive và tạo nhân viên
+```bash
+sudo sysadmin alert setup-telegram     # nhận cảnh báo trên điện thoại (khuyên dùng)
+sudo sysadmin alert setup-mail         # và/hoặc email (Gmail: dùng "Mật khẩu ứng dụng")
+sudo sysadmin alert test               # điện thoại phải nhận được tin thử
+sudo sysadmin backup cloud-setup       # Google Drive — xem mục 4.4
+sudo nano /opt/sysadmin-toolkit/config/users.csv
+sudo sysadmin users create             # tạo nhân viên, in mật khẩu tạm
+sudo sysadmin users setup-dirs         # thư mục dự án /srv/technova cho các phòng ban
+```
+
+### Bước 4: Quản trị từ máy khác qua SSH
+```bash
+hostname -I                            # (trên máy chủ) xem địa chỉ IP, ví dụ 192.168.1.50
+ssh hungnv@192.168.1.50                # (trên laptop) đăng nhập bằng tài khoản Tech Lead
+sudo sysadmin --tui
+```
+- **Cùng mạng Wi-Fi/LAN:** SSH thẳng bằng IP như trên.
+- **Ở xa (khác mạng, 4G):** cài [Tailscale](https://tailscale.com/download) trên máy chủ và laptop (`curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`), rồi SSH bằng IP `100.x.x.x`.
+  Không dùng ngrok/Cloudflare Tunnel: qua tunnel mọi kết nối đều hiện là `127.0.0.1` nên IDS không biết IP thật.
+
+### Bước 5: Kiểm tra máy chủ đang tự vận hành
+```bash
+systemctl list-timers 'toolkit-*'      # 4 timer và giờ chạy kế tiếp
+journalctl -u toolkit-monitor -n 30    # log của lần kiểm tra gần nhất
+sudo sysadmin alert history            # các cảnh báo đã gửi
+sudo sysadmin backup list              # các bản sao lưu
+```
+
+### Cài thủ công (không dùng `--server`)
+```bash
+sudo ./install.sh --deps               # chỉ cài toolkit và gói phụ thuộc
+sudo nano /opt/sysadmin-toolkit/config/toolkit.conf
+sudo sysadmin alert baseline
+sudo sysadmin scheduler timers-install # hoặc: sudo sysadmin scheduler install (cron)
+```
+
+### Gỡ cài đặt
+```bash
+sudo ./install.sh --uninstall          # các bản sao lưu trong /var/backups/sysadmin-toolkit vẫn được giữ
+```
+
+### Lưu ý khi máy chủ cũng là máy bạn dùng hằng ngày
+- Bảo dưỡng 03:30 xoá file trong `/tmp`, `/var/tmp` cũ hơn 7 ngày, chạy `apt autoremove`, chỉ giữ journald 30 ngày.
+- Ứng dụng tự mở cổng (Docker, Spotify, KDE Connect...) làm IDS báo "cổng mới mở" → chạy `sudo sysadmin alert baseline`.
+- **Không** chạy `tests/demo-test.sh` hay `users demo-clean` trên máy thật: chúng tạo/xoá user và sửa crontab.
+
+---
+
+## 2. Cách B — Docker (thử nhanh và kiểm thử tự động)
+
+> Container **không phải máy chủ thật**: nó chỉ thấy user, process và log bên trong chính nó, không có systemd.
+> Dùng Docker để thử toolkit trong vài phút, chạy bộ 75 test tự động, hoặc làm phương án dự phòng khi demo.
 
 ### Bước 1: Cài Docker trên máy của bạn
 ```bash
@@ -60,53 +145,6 @@ docker compose down -v             # xoá cả dữ liệu
 > - Tài khoản nhân viên tạo bên trong container sẽ mất khi xoá container. Bản sao lưu, cấu hình, báo cáo và log thì được giữ trong volume.
 > - Container không có systemd, nên lệnh `scheduler timers-install` không dùng được; hãy dùng `scheduler install` (cron).
 > - Lệnh `monitor logs` và `monitor auth` ít dữ liệu hơn máy thật vì không có journald.
-
----
-
-## 2. Cách B — Cài trực tiếp lên máy Linux
-
-Hỗ trợ: **Ubuntu / Debian / Kali** (khuyên dùng Ubuntu Server 22.04/24.04) và **RHEL / Rocky / AlmaLinux / Fedora**. Yêu cầu Bash ≥ 4.4.
-
-### Bước 1: Mang mã nguồn sang máy đích
-Có hai cách:
-```bash
-# Cách 1: git
-git clone https://github.com/duylmaoxd/technova-sysadmin-toolkit.git && cd technova-sysadmin-toolkit
-
-# Cách 2: file nén (tạo trên máy có mã nguồn bằng ./package.sh → dist/sysadmin-toolkit-1.0.0.tar.gz)
-scp dist/sysadmin-toolkit-1.0.0.tar.gz user@may-dich:~
-ssh user@may-dich
-tar xzf sysadmin-toolkit-1.0.0.tar.gz && cd sysadmin-toolkit
-```
-
-### Bước 2: Cài đặt
-```bash
-chmod +x sysadmin.sh install.sh
-sudo ./install.sh --deps           # chép vào /opt/sysadmin-toolkit, tạo lệnh "sysadmin", cài gói cần thiết
-```
-Sau khi cài, gõ `sysadmin` ở bất kỳ thư mục nào để chạy toolkit.
-
-### Bước 3: Cấu hình (chỉ cần làm một lần)
-```bash
-sudo nano /opt/sysadmin-toolkit/config/toolkit.conf   # tên công ty, phòng ban, ngưỡng cảnh báo, thư mục sao lưu...
-sudo nano /opt/sysadmin-toolkit/config/users.csv      # danh sách nhân viên
-sudo sysadmin alert setup-telegram                    # nhận cảnh báo qua Telegram (khuyên dùng)
-sudo sysadmin alert setup-mail                        # và/hoặc qua email (Gmail: dùng "Mật khẩu ứng dụng")
-sudo sysadmin backup cloud-setup                      # (tuỳ chọn) tải backup & log lên Google Drive — xem mục 4.4
-sudo sysadmin alert baseline                          # chụp trạng thái chuẩn cho hệ thống phát hiện tấn công
-```
-
-### Bước 4: Bật tự động hoá
-```bash
-sudo sysadmin scheduler install    # sao lưu 02:00, upload log 02:30, bảo dưỡng 03:30, cảnh báo 5 phút/lần, báo cáo thứ Hai
-sudo crontab -l                    # kiểm tra
-```
-Nếu muốn dùng systemd timer thay cho cron: `sudo sysadmin scheduler timers-install`.
-
-### Gỡ cài đặt
-```bash
-sudo ./install.sh --uninstall      # các bản sao lưu trong /var/backups/sysadmin-toolkit vẫn được giữ
-```
 
 ---
 
@@ -197,7 +235,7 @@ Toolkit dùng **rclone** với quyền `drive.file`: nó chỉ đọc/ghi đư�
 
 ### 4.5. Phát hiện tấn công & cảnh báo qua Telegram / email
 `alert check` (cron mỗi 5 phút) đã gồm phần phát hiện tấn công; chạy riêng bằng `sudo sysadmin alert security`.
-Toolkit phát hiện: dò mật khẩu SSH theo IP, dò tên tài khoản, **đăng nhập thành công ngay sau khi dò** (nghi bị chiếm tài khoản),
+Toolkit phát hiện: dò mật khẩu SSH theo IP (kể cả khi máy chỉ cho đăng nhập bằng key — bot chỉ để lại dòng `Invalid user`/`[preauth]`), dò tên tài khoản, **đăng nhập thành công ngay sau khi dò** (nghi bị chiếm tài khoản),
 sudo sai nhiều lần, quét cổng, file hệ thống quan trọng bị sửa, tài khoản lạ hoặc có UID 0, cổng mới mở, process chạy từ `/tmp`.
 
 Có dấu hiệu mới thì Telegram và email nhận một tin dạng:
@@ -217,7 +255,7 @@ Các tham số trong `config/toolkit.conf`:
 | `IDS_SUDO_FAIL` | 3 | Số lần sudo sai của một user |
 | `IDS_SCAN_HITS` | 20 | Số gói bị tường lửa chặn từ một IP thì coi là quét cổng |
 | `AUTO_BAN` | `no` | `yes` = tự chặn IP dò mật khẩu bằng ufw/iptables |
-| `IDS_WHITELIST` | `127.0.0.1 ::1` | IP không bao giờ bị chặn — **thêm IP văn phòng/VPN của anh Hưng trước khi bật AUTO_BAN** |
+| `IDS_WHITELIST` | `127.0.0.1 ::1` | IP hoặc dải mạng (vd. `192.168.1.0/24`) không bao giờ bị chặn — **thêm IP văn phòng/VPN của anh Hưng trước khi bật AUTO_BAN** |
 | `ALERT_COOLDOWN_MIN` | 30 | Mỗi dấu hiệu chỉ báo lại sau ngần này phút |
 
 ## 5. Demo nhanh 5 phút (sau khi đã SSH vào máy chủ)

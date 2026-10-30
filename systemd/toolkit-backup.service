@@ -1,10 +1,14 @@
 # Tạo bởi LinuxAdmin Toolkit — được kích hoạt bởi toolkit-backup.timer
 [Unit]
-Description=LinuxAdmin Toolkit: sao lưu hằng ngày
+Description=LinuxAdmin Toolkit: sao lưu + kiểm tra & tải log lên Google Drive hằng ngày
+After=network-online.target
+Wants=network-online.target
 Documentation=file://@TOOLKIT_DIR@/README.md
 
 [Service]
 Type=oneshot
-ExecStart=@TOOLKIT_DIR@/sysadmin.sh --no-color --yes backup run
+# Dấu '-': sao lưu lỗi (đã tự gửi cảnh báo) vẫn tiếp tục đóng gói log
+ExecStart=-@TOOLKIT_DIR@/sysadmin.sh --no-color --yes backup run
+ExecStart=@TOOLKIT_DIR@/sysadmin.sh --no-color --yes monitor log-upload
 Nice=15
 IOSchedulingClass=idle

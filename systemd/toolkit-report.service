@@ -1,0 +1,9 @@
+# Tạo bởi LinuxAdmin Toolkit — được kích hoạt bởi toolkit-report.timer
+[Unit]
+Description=LinuxAdmin Toolkit: báo cáo tình trạng máy chủ hằng tuần
+Documentation=file://@TOOLKIT_DIR@/README.md
+
+[Service]
+Type=oneshot
+ExecStart=@TOOLKIT_DIR@/sysadmin.sh --no-color monitor report
+Nice=10

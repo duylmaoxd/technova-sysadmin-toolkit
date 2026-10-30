@@ -126,11 +126,13 @@ check "Hệ thống bình thường → không có dấu hiệu tấn công" bas
 for i in 1 2 3 4 5 6; do logger -p authpriv.notice -t "sshd[4242]" "Failed password for invalid user u$i from 203.0.113.9 port 5$i ssh2"; done
 for u in admin oracle test guest postgres; do logger -p authpriv.notice -t "sshd[4242]" "Invalid user $u from 203.0.113.9 port 5000"; done
 logger -p authpriv.notice -t "sshd[4243]" "Accepted password for annv from 203.0.113.9 port 5100 ssh2"
+for i in 1 2 3 4 5 6; do logger -p authpriv.notice -t "sshd-session[43$i]" "Connection closed by invalid user hacker 198.51.100.5 port 6$i [preauth]"; done
 useradd -o -u 0 -M -s /bin/bash tkbackdoor 2>/dev/null
 cp /bin/sleep /tmp/kdevtmpfsi && (/tmp/kdevtmpfsi 120 &)
 sleep 2
 IDS=$("$SA" --no-color alert security 2>&1); echo "$IDS" >>"$LOG"
-check "Phát hiện dò mật khẩu SSH từ 203.0.113.9" grep -q 'Dò mật khẩu SSH: 6 lần thất bại từ IP 203.0.113.9' <<<"$IDS"
+check "Phát hiện dò mật khẩu SSH từ 203.0.113.9" grep -qE 'Dò mật khẩu SSH: [0-9]+ lần thất bại từ IP 203.0.113.9' <<<"$IDS"
+check "Bắt dò SSH cả khi máy chỉ cho đăng nhập bằng key (198.51.100.5)" grep -qE 'Dò mật khẩu SSH: [0-9]+ lần thất bại từ IP 198.51.100.5' <<<"$IDS"
 check "Phát hiện dò tên tài khoản (password spraying)" grep -q 'Dò tên tài khoản' <<<"$IDS"
 check "Cảnh báo NGHI BỊ CHIẾM TÀI KHOẢN annv" grep -q 'NGHI BỊ CHIẾM TÀI KHOẢN: annv' <<<"$IDS"
 check "Phát hiện /etc/passwd bị thay đổi ngoài toolkit" grep -q 'THAY ĐỔI: /etc/passwd' <<<"$IDS"
@@ -141,6 +143,7 @@ check "Chống spam: lần kế tiếp không gửi lại" bash -c "'$SA' --no-c
 pkill -f /tmp/kdevtmpfsi; rm -f /tmp/kdevtmpfsi
 userdel tkbackdoor 2>/dev/null
 sa alert baseline
+check "IDS_WHITELIST nhận dải mạng (192.168.1.0/24 chứa 192.168.1.77)" bash -c "source $(dirname "$(readlink -f "$(command -v "$SA")")")/lib/common.sh && ip_in_list 192.168.1.77 '127.0.0.1 192.168.1.0/24' && ! ip_in_list 192.168.2.1 '192.168.1.0/24'"
 check "logcheck tổng hợp đăng nhập thất bại theo IP" bash -c "'$SA' --no-color monitor logcheck 1 | grep -q '203.0.113.9'"
 if iptables -L INPUT -n >/dev/null 2>&1; then
   sa alert ban 198.51.100.7

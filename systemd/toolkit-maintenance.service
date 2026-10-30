@@ -1,0 +1,10 @@
+# Tạo bởi LinuxAdmin Toolkit — được kích hoạt bởi toolkit-maintenance.timer
+[Unit]
+Description=LinuxAdmin Toolkit: bảo dưỡng hằng ngày (dọn file tạm, log, cache gói)
+Documentation=file://@TOOLKIT_DIR@/README.md
+
+[Service]
+Type=oneshot
+ExecStart=@TOOLKIT_DIR@/sysadmin.sh --no-color --yes scheduler maintenance
+Nice=15
+IOSchedulingClass=idle

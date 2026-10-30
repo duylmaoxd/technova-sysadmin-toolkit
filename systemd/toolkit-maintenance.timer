@@ -1,0 +1,11 @@
+# Tạo bởi LinuxAdmin Toolkit — bảo dưỡng lúc 03:30 mỗi ngày
+[Unit]
+Description=LinuxAdmin Toolkit: bảo dưỡng lúc 03:30 hằng ngày
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=toolkit-maintenance.service
+
+[Install]
+WantedBy=timers.target

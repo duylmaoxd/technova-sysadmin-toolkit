@@ -365,7 +365,7 @@ _ids_baseline_files() {
   [[ ${1:-} == quiet ]] || log_ok "Đã chụp trạng thái chuẩn: $(wc -l <"$STATE_DIR/ids-integrity.sha") file, $(wc -l <"$STATE_DIR/ids-ports.list") cổng."
 }
 
-_ids_whitelisted() { local w; for w in $IDS_WHITELIST; do [[ $1 == "$w" ]] && return 0; done; return 1; }
+_ids_whitelisted() { ip_in_list "$1" "$IDS_WHITELIST"; }
 
 _ban_ip() { # _ban_ip <ip> <lý do>
   local ip=$1 why=${2:-thủ công}
@@ -413,8 +413,7 @@ alert_security() {
     _ids_whitelisted "$ip" && continue
     add WARN "ssh-brute:$ip" "Dò mật khẩu SSH: $n lần thất bại từ IP $ip trong $IDS_WINDOW_MIN phút"
     [[ ${AUTO_BAN,,} == yes ]] && bans+=("$ip")
-  done < <({ grep -E 'Failed [a-z/-]+ for ' <<<"$auth" || true; } |
-    grep -oE 'from [0-9a-fA-F:.]+' | awk '{ print $2 }' | sort | uniq -c |
+  done < <(ssh_fail_attempts <<<"$auth" | awk '{ print $1 }' | sort | uniq -c |
     awk -v t="$IDS_SSH_FAIL_PER_IP" '$1 >= t { print $1, $2 }' || true)
 
   # 2. Dò tên tài khoản (password spraying): thử nhiều username không tồn tại
@@ -426,7 +425,7 @@ alert_security() {
   # 3. Đăng nhập THÀNH CÔNG từ IP vừa dò mật khẩu → nghi bị chiếm tài khoản
   while read -r user ip; do
     [[ -n $ip ]] || continue
-    n=$({ grep -E 'Failed [a-z/-]+ for ' <<<"$auth" || true; } | grep -cF "from $ip " || true)
+    n=$(ssh_fail_attempts <<<"$auth" | awk -v ip="$ip" '$1 == ip' | grep -c . || true)
     ((n > 0)) && add CRITICAL "ssh-compromise:$user@$ip" "NGHI BỊ CHIẾM TÀI KHOẢN: $user đăng nhập thành công từ $ip sau $n lần thất bại"
     [[ $user == root ]] && add WARN "ssh-root:$ip" "Đăng nhập SSH trực tiếp bằng root từ $ip"
   done < <({ grep -oE 'Accepted [a-z-]+ for [^ ]+ from [0-9a-fA-F:.]+' <<<"$auth" || true; } | awk '{ print $4, $6 }' | sort -u || true)

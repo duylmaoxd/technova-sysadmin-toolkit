@@ -146,6 +146,38 @@ log_error() {
 die()       { log_error "$*"; exit 1; }
 
 # Ghi sự kiện quan trọng vào syslog/journald — xem lại: journalctl -t sysadmin-toolkit
+# ssh_fail_attempts — đọc log xác thực từ stdin, in mỗi lần đăng nhập SSH thất bại một dòng "<IP> <user>".
+# Bắt được cả khi máy chủ chỉ cho đăng nhập bằng key (bot không để lại "Failed password" mà chỉ có
+# "Invalid user", "Connection closed by authenticating user ... [preauth]", "maximum authentication attempts").
+# Một kết nối (IP + port) có dòng "Failed ..." thì đếm theo số dòng Failed, nếu không thì đếm là 1 lần.
+ssh_fail_attempts() {
+  sed -nE \
+    -e 's/.*Failed [a-z/-]+ for (invalid user )?([^ ]*) from ([0-9a-fA-F:.]+) port ([0-9]+).*/F \3 \4 \2/p' \
+    -e 's/.*Invalid user ([^ ]*) from ([0-9a-fA-F:.]+) port ([0-9]+).*/C \2 \3 \1/p' \
+    -e 's/.*(Connection closed by|Disconnected from) (invalid|authenticating) user ([^ ]*) ([0-9a-fA-F:.]+) port ([0-9]+).*\[preauth\].*/C \4 \5 \3/p' \
+    -e 's/.*maximum authentication attempts exceeded for (invalid user )?([^ ]*) from ([0-9a-fA-F:.]+) port ([0-9]+).*/C \3 \4 \2/p' |
+    awk '$1 == "F" { print $2, ($4 == "" ? "?" : $4); failed[$2 " " $3] = 1; next }
+         { k = $2 " " $3; if (!(k in ip)) { ip[k] = $2; usr[k] = ($4 == "" ? "?" : $4) } }
+         END { for (k in ip) if (!(k in failed)) print ip[k], usr[k] }'
+}
+
+# ip_in_list <IP> "<danh sách>" — 0 nếu IP trùng một mục trong danh sách (IP lẻ hoặc dải IPv4 dạng 192.168.1.0/24)
+ip_in_list() {
+  local ip=$1 w net bits a b c d ipn netn mask
+  for w in $2; do
+    [[ $ip == "$w" ]] && return 0
+    [[ $w == */* && $ip =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || continue
+    ipn=$(((BASH_REMATCH[1] << 24) | (BASH_REMATCH[2] << 16) | (BASH_REMATCH[3] << 8) | BASH_REMATCH[4]))
+    net=${w%/*} bits=${w#*/}
+    IFS=. read -r a b c d <<<"$net"
+    [[ $bits =~ ^[0-9]+$ ]] && ((bits <= 32)) && [[ $a$b$c$d =~ ^[0-9]+$ ]] || continue
+    netn=$(((a << 24) | (b << 16) | (c << 8) | d))
+    mask=$(((0xFFFFFFFF << (32 - bits)) & 0xFFFFFFFF))
+    (((ipn & mask) == (netn & mask))) && return 0
+  done
+  return 1
+}
+
 syslog_event() { if has logger; then logger -t sysadmin-toolkit -- "$*" 2>/dev/null || true; fi; }
 
 # ============================================ 4. DRY-RUN, XÁC NHẬN, QUYỀN ROOT ===
