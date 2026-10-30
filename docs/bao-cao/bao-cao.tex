@@ -3,7 +3,12 @@
 %  Biên dịch bằng XeLaTeX (cần 2 lần để có mục lục):
 %     xelatex bao-cao.tex && xelatex bao-cao.tex
 %  hoặc không cần cài LaTeX:  ./build.sh   (dùng Docker image texlive/texlive)
-%  >>> Sửa thông tin nhóm ở phần "THÔNG TIN NHÓM" ngay bên dưới <<<
+%
+%  >>> PHẦN CẦN BẠN BỔ SUNG (xem thêm CAN-BO-SUNG.md):
+%    1. Thông tin nhóm ở mục "THÔNG TIN NHÓM" ngay bên dưới.
+%    2. Ảnh demo: chép ảnh PNG vào thư mục hinh/ với ĐÚNG tên file in trong
+%       khung vàng của từng hình, rồi chạy lại ./build.sh — khung tự thay bằng ảnh.
+%    3. Số liệu vận hành thực tế: tìm \dien{...} (ô vàng trong PDF) và thay bằng số thật.
 % =============================================================================
 \documentclass[12pt,a4paper,oneside]{report}
 
@@ -17,7 +22,7 @@
   Nguyễn Văn A — MSSV ........ \\
   Trần Thị B — MSSV ........ \\
   Lê Văn C — MSSV ........}
-\newcommand{\NgayNop}{TP. Hồ Chí Minh, tháng 10/2026}
+\newcommand{\NgayNop}{TP. Hồ Chí Minh, tháng ..../2026}
 \newcommand{\RepoURL}{https://github.com/duylmaoxd/technova-sysadmin-toolkit}
 
 % ---------------------------------------------------------------- GÓI LỆNH ---
@@ -30,15 +35,16 @@
 \usepackage[left=3cm,right=2cm,top=2.5cm,bottom=2.5cm]{geometry}
 \usepackage{setspace}\setstretch{1.25}
 \usepackage{graphicx,float,booktabs,tabularx,longtable,array,enumitem,caption,fancyhdr,xcolor,fancyvrb,colortbl}
-\usepackage{tikz}\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit}
+\usepackage{tikz}\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,calc}
 \usepackage[hidelinks,unicode]{hyperref}
-\graphicspath{{../hinh/}}
+\graphicspath{{hinh/}}
 
 \definecolor{navy}{HTML}{14324F}
 \definecolor{teal}{HTML}{0F7C80}
 \definecolor{mint}{HTML}{E6F4F1}
 \definecolor{code}{HTML}{F4F6F8}
 \definecolor{amber}{HTML}{E8A33D}
+\definecolor{brick}{HTML}{B5473A}
 
 \setlist{itemsep=2pt,topsep=4pt}
 \captionsetup{font=small,labelfont={bf,color=navy}}
@@ -47,6 +53,22 @@
 
 \fvset{fontsize=\small,frame=single,framesep=6pt,rulecolor=\color{teal!50},numbers=none}
 \newcommand{\cmd}[1]{\texttt{\small #1}}
+
+% \anhdemo[độ rộng]{tên file}{chú thích}{hướng dẫn chụp}
+%   Có file hinh/<tên file> → chèn ảnh; chưa có → vẽ khung vàng ghi rõ cần chụp gì.
+\newcommand{\anhdemo}[4][0.9]{%
+  \begin{figure}[H]\centering
+  \IfFileExists{hinh/#2}{\includegraphics[width=#1\textwidth]{#2}}{%
+    \begin{tikzpicture}
+      \node[draw=amber, dashed, line width=1.2pt, fill=amber!7, rounded corners=4pt,
+            minimum width=#1\textwidth, minimum height=4.6cm, text width=#1\textwidth-1.2cm, align=center]
+        {{\sffamily\bfseries\color{amber!60!black} CHÈN ẢNH: \texttt{hinh/#2}}\\[6pt]
+         {\small #4}};
+    \end{tikzpicture}}
+  \caption{#3}\label{fig:#2}
+  \end{figure}}
+% \dien{gợi ý} — chỗ cần điền số liệu thật (hiện thành ô vàng trong PDF)
+\newcommand{\dien}[1]{\colorbox{amber!35}{\sffamily\small\textbf{[điền: #1]}}}
 
 \pagestyle{fancy}\fancyhf{}
 \fancyhead[L]{\small\color{navy}LinuxAdmin Toolkit — TechNova Solutions}
@@ -82,10 +104,11 @@
 {\color{navy}\rule{0.6\textwidth}{1pt}\par}\vspace{0.4cm}
 {\fontsize{24}{30}\selectfont\bfseries\color{navy}LINUXADMIN TOOLKIT\par}
 \vspace{0.3cm}
-{\Large\bfseries Bộ công cụ quản trị máy chủ bằng Bash\\cho doanh nghiệp TechNova Solutions\par}
+{\Large\bfseries Bộ công cụ quản trị, giám sát và bảo vệ\\máy chủ Linux bằng Bash\par}
 \vspace{0.4cm}{\color{navy}\rule{0.6\textwidth}{1pt}\par}
 \vspace{0.5cm}
 {\large Đề tài 3: \textit{Bash Scripting cho System Administration}\par}
+{\normalsize Triển khai thực tế cho doanh nghiệp giả định TechNova Solutions\par}
 \vfill
 \begin{tabular}{rl}
 \textbf{Giảng viên hướng dẫn:} & \GiangVien \\[4pt]
@@ -99,22 +122,22 @@
 % ---------------------------------------------------------------- TÓM TẮT ---
 \chapter*{Tóm tắt}
 \addcontentsline{toc}{chapter}{Tóm tắt}
-Báo cáo trình bày quá trình phân tích, thiết kế, hiện thực và kiểm thử \textbf{LinuxAdmin Toolkit}. Đây là bộ công cụ quản trị máy chủ Linux viết hoàn toàn bằng Bash, phục vụ một kịch bản doanh nghiệp giả định: công ty \textbf{TechNova Solutions} có một máy chủ Ubuntu Server tập trung (\cmd{technova-core-srv}) cho toàn bộ lập trình viên, data analyst và tester SSH vào làm việc. Tech Lead của công ty làm việc từ xa và chỉ dùng terminal qua SSH để điều hành hệ thống.
+Báo cáo trình bày quá trình phân tích, thiết kế, hiện thực, \textbf{triển khai thực tế} và kiểm thử \textbf{LinuxAdmin Toolkit} — bộ công cụ quản trị máy chủ Linux viết hoàn toàn bằng Bash. Kịch bản sử dụng là công ty \textbf{TechNova Solutions} có một máy chủ Ubuntu tập trung (\cmd{technova-core-srv}); nhân viên SSH vào làm việc, còn Tech Lead làm việc từ xa và chỉ điều hành máy chủ qua SSH.
 
-Toolkit gom các công việc hằng ngày của Tech Lead vào \textbf{5 chức năng chính}:
+Toolkit gom công việc hằng ngày của Tech Lead vào \textbf{5 chức năng chính}:
 \begin{enumerate}
-  \item \textbf{users} — quản lý nhân viên và phân quyền;
-  \item \textbf{monitor} — giám sát tài nguyên và hoạt động của nhân viên;
-  \item \textbf{alert} — cảnh báo sự cố tức thời;
-  \item \textbf{backup} — sao lưu tài sản số;
-  \item \textbf{scheduler} — tự động hoá bảo dưỡng.
+  \item \textbf{users} — quản lý vòng đời nhân viên và phân quyền theo phòng ban;
+  \item \textbf{monitor} — giám sát tài nguyên, hoạt động nhân viên và kiểm tra nhật ký hệ thống;
+  \item \textbf{alert} — cảnh báo sự cố và \textbf{phát hiện xâm nhập} (IDS dựa trên luật), gửi về Telegram và email;
+  \item \textbf{backup} — sao lưu có kiểm tra toàn vẹn, đẩy bản sao lên \textbf{Google Drive};
+  \item \textbf{scheduler} — tự động hoá bằng cron hoặc \textbf{systemd timer}.
 \end{enumerate}
 
-Hệ thống có \textbf{hai chế độ làm việc} chuyển qua lại được: giao diện menu trong terminal (TUI, dùng \cmd{dialog}/\cmd{whiptail}) và dòng lệnh (CLI). Hai chế độ dùng chung một bộ chức năng, vì mỗi thao tác trên giao diện thực chất gọi đúng một lệnh CLI tương ứng.
+Khác với một bản demo trong máy ảo hay container, toolkit được \textbf{cài trực tiếp lên một máy Ubuntu thật} bằng một lệnh (\cmd{install.sh --server}) và để tự vận hành nhiều ngày. Máy khác trong mạng SSH vào để quản trị, đóng vai nhân viên, và thử tấn công dò mật khẩu; cảnh báo tới điện thoại qua Telegram, bản sao lưu nằm trên Google Drive.
 
-Sản phẩm gồm khoảng \textbf{3.850 dòng Bash} với \textbf{60 action}. Toolkit được đóng gói thành image Docker và gói \cmd{.tar.gz}, kèm bộ kiểm thử tự động. Bộ kiểm thử đạt \textbf{55/55 test PASS} trên Ubuntu 24.04, và mã nguồn qua kiểm tra tĩnh \textbf{shellcheck} không còn cảnh báo.
+Sản phẩm gồm khoảng \textbf{4.370 dòng Bash} với \textbf{71 action}, có hai chế độ dùng chuyển qua lại được (giao diện menu trong terminal và dòng lệnh). Bộ kiểm thử tự động đạt \textbf{75/75 PASS}; mã nguồn qua \textbf{shellcheck} không còn cảnh báo.
 
-\vspace{6pt}\noindent\textbf{Từ khoá:} Bash scripting, system administration, cron, sao lưu, giám sát, cảnh báo, TUI, Docker.
+\vspace{6pt}\noindent\textbf{Từ khoá:} Bash scripting, system administration, systemd, cron, sao lưu, Google Drive, giám sát, IDS, Telegram, SSH.
 
 \tableofcontents
 \listoffigures
@@ -124,47 +147,75 @@ Sản phẩm gồm khoảng \textbf{3.850 dòng Bash} với \textbf{60 action}. 
 \chapter{Giới thiệu}
 
 \section{Bối cảnh doanh nghiệp}
-\textbf{TechNova Solutions} là công ty công nghệ chuyên phát triển phần mềm và phân tích dữ liệu. Hạ tầng của công ty xoay quanh một \textbf{máy chủ Linux Ubuntu Server tập trung} tên \cmd{technova-core-srv}, đặt tại trụ sở chính. Toàn bộ nhân sự đều SSH vào máy chủ này để làm việc:
+\textbf{TechNova Solutions} là công ty công nghệ chuyên phát triển phần mềm và phân tích dữ liệu. Hạ tầng xoay quanh một \textbf{máy chủ Ubuntu tập trung} tên \cmd{technova-core-srv}. Toàn bộ nhân sự SSH vào máy chủ này để làm việc:
 \begin{itemize}
   \item \textbf{Lập trình viên} (nhóm \cmd{dev}) viết và commit code;
-  \item \textbf{Data Analyst} (nhóm \cmd{data}) chạy các tác vụ huấn luyện mô hình dữ liệu;
+  \item \textbf{Data Analyst} (nhóm \cmd{data}) chạy tác vụ huấn luyện mô hình;
   \item \textbf{Tester} (nhóm \cmd{qa}) chạy kiểm thử.
 \end{itemize}
 
 \section{Nhân vật chính và bài toán}
-\textbf{Anh Hưng} là Giám đốc Kỹ thuật (Tech Lead/Sysadmin). Anh làm việc từ xa và \textbf{chỉ dùng terminal qua SSH} để điều hành hạ tầng. Công việc hằng ngày của anh gồm bốn nhóm:
+\textbf{Anh Hưng} là Tech Lead kiêm quản trị hệ thống. Anh làm việc từ xa và \textbf{chỉ dùng terminal qua SSH}. Công việc hằng ngày gồm:
 \begin{enumerate}
-  \item Cấp quyền và quản lý nhân viên làm việc: tài khoản, phòng ban, thư mục dự án, quyền sudo, thủ tục nghỉ việc.
-  \item Giám sát tài nguyên máy chủ: ai đang đăng nhập và làm gì, có ai treo process ngốn RAM/CPU không.
-  \item Nhận cảnh báo tức thời khi hệ thống gặp sự cố, bất kể ngày hay đêm.
-  \item Tự động hoá các tác vụ bảo dưỡng hằng ngày và sao lưu an toàn tài sản số của công ty.
+  \item cấp quyền và quản lý nhân viên: tài khoản, phòng ban, thư mục dự án, sudo, thủ tục nghỉ việc;
+  \item giám sát máy chủ: ai đang đăng nhập và làm gì, có ai treo process ngốn CPU/RAM;
+  \item nhận cảnh báo tức thời khi có sự cố hoặc \textbf{khi máy chủ bị tấn công}, bất kể ngày đêm;
+  \item tự động hoá bảo dưỡng, sao lưu an toàn và \textbf{lưu bản sao ra ngoài máy chủ}.
 \end{enumerate}
-Nếu làm tay, mỗi việc trên gồm hàng chục lệnh rời rạc (\cmd{useradd}, \cmd{chmod}, \cmd{ps}, \cmd{kill}, \cmd{tar}, \cmd{crontab}...), dễ sai sót và khó lặp lại. Bài toán đặt ra là \textbf{tự động hoá toàn bộ các công việc này bằng Bash script}.
+Làm tay, mỗi việc gồm hàng chục lệnh rời rạc, dễ sai và khó lặp lại. Bài toán là \textbf{tự động hoá toàn bộ bằng Bash script}.
+
+\section{Ứng dụng thực tế}
+Đối tượng sử dụng là doanh nghiệp nhỏ và startup có vài máy chủ Linux nhưng không có đội IT riêng, không đủ ngân sách hoặc nhân lực để vận hành các nền tảng chuyên dụng như Zabbix, Wazuh hay Veeam. Toolkit giải quyết đúng các rủi ro thường gặp ở những nơi này:
+\begin{table}[H]\centering\small
+\caption{Rủi ro thực tế và cách toolkit xử lý}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{6.3cm}L}
+\toprule
+\textbf{Rủi ro thật} & \textbf{Toolkit xử lý}\\\midrule
+Nhân viên nghỉ việc vẫn còn SSH, sudo, crontab & \cmd{users offboard}: khoá và thu hồi đủ 5 bước\\
+Máy chủ có IP public bị bot dò mật khẩu SSH liên tục & IDS phát hiện, tự chặn IP bằng tường lửa, báo về Telegram\\
+Ổ đầy hoặc process treo lúc 2 giờ sáng & Kiểm tra mỗi 5 phút, báo lên điện thoại\\
+Ransomware, hỏng ổ cứng làm mất dữ liệu & Sao lưu có checksum, bản sao nằm ngoài máy (Google Drive)\\
+Sau sự cố không biết chuyện gì đã xảy ra & \cmd{monitor logcheck}; log được lưu lên Drive mỗi đêm\\
+\bottomrule
+\end{tabularx}
+\end{table}
+Toolkit chỉ cần Bash và các lệnh có sẵn của Linux, cài trong một lệnh, giao diện tiếng Việt và dùng hoàn toàn qua SSH.
 
 \section{Mục tiêu và phạm vi}
 \begin{itemize}
-  \item Xây dựng một bộ công cụ \textbf{viết hoàn toàn bằng Bash}, chạy được trên Ubuntu/Debian (và tương thích RHEL/Rocky).
-  \item Đáp ứng đủ \textbf{5 chức năng chính} tương ứng với nhu cầu của Tech Lead.
-  \item Dùng tốt qua SSH với \textbf{hai chế độ}: giao diện menu (TUI) và dòng lệnh (CLI), chuyển qua lại được.
-  \item \textbf{An toàn}: mọi thao tác thay đổi hệ thống đều hỏi xác nhận và có chế độ chạy thử (\textit{dry-run}).
-  \item \textbf{Dễ triển khai}: cài một lệnh trên máy thật, hoặc chạy bằng Docker.
+  \item Bộ công cụ \textbf{viết hoàn toàn bằng Bash}, chạy trên Ubuntu/Debian và tương thích RHEL/Rocky.
+  \item Đủ \textbf{5 chức năng chính} theo nhu cầu của Tech Lead; dùng được qua SSH với hai chế độ TUI và CLI.
+  \item \textbf{An toàn}: thao tác thay đổi hệ thống phải xác nhận và có chế độ chạy thử (\textit{dry-run}).
+  \item \textbf{Triển khai thật}: cài lên máy Ubuntu thật, vận hành liên tục, quản trị từ máy khác.
 \end{itemize}
-Ngoài phạm vi: quản lý nhiều máy chủ cùng lúc, giao diện web, tích hợp hệ thống giám sát chuyên dụng (Prometheus, Zabbix).
+Ngoài phạm vi: quản lý tập trung nhiều máy chủ, giao diện web, phát hiện xâm nhập bằng học máy.
+
+\section{Liên hệ với các đề tài của môn học}
+Đề tài chính là \textbf{đề tài 3}, nhưng toolkit đồng thời thực hành nội dung của nhiều đề tài khác:
+\begin{table}[H]\centering\small
+\caption{Các đề tài của môn học được thể hiện trong toolkit}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{5.2cm}L}
+\toprule
+\textbf{Đề tài} & \textbf{Thể hiện trong toolkit}\\\midrule
+3. Bash scripting cho SysAdmin & Toàn bộ toolkit: backup tự động, tạo user hàng loạt, monitor disk, đánh giá lợi ích automation\\
+1. Process management & \cmd{monitor top/hogs/renice/kill}: \cmd{ps}, \cmd{nice}, tín hiệu, CFS\\
+4. Boot process \& systemd & 4 cặp service + timer do toolkit tạo; journald\\
+5. User \& security & \cmd{users}: \cmd{/etc/passwd}, \cmd{/etc/shadow}, sudo, \cmd{chmod}/\cmd{chown}, chính sách mật khẩu\\
+6. Network \& remote admin & Quản trị qua SSH từ máy khác; tường lửa iptables/ufw chặn IP tấn công\\
+9. Monitoring \& troubleshooting & \cmd{monitor}, \cmd{logcheck}: \cmd{top}, \cmd{free}, \cmd{df}, rsyslog, journald, quy trình chẩn đoán\\
+10. Cron \& shell automation & \cmd{scheduler}: cron, at, cảnh báo email\\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \section{Cấu trúc báo cáo}
-\begin{itemize}
-  \item \textbf{Chương 2}: cơ sở lý thuyết về Bash và quản trị Linux.
-  \item \textbf{Chương 3}: phân tích yêu cầu và thiết kế hệ thống.
-  \item \textbf{Chương 4}: hiện thực từng chức năng.
-  \item \textbf{Chương 5}: kiểm thử và đánh giá.
-  \item \textbf{Chương 6}: kết luận và hướng phát triển.
-\end{itemize}
+Chương 2 trình bày cơ sở lý thuyết; chương 3 phân tích và thiết kế; chương 4 hiện thực từng chức năng; chương 5 mô tả triển khai thực tế và workflow demo; chương 6 kiểm thử và đánh giá; chương 7 kết luận. Phụ lục gồm hướng dẫn sử dụng và danh sách lệnh.
 
 % ================================================================ CHƯƠNG 2 ===
 \chapter{Cơ sở lý thuyết}
 
 \section{Bash scripting}
-\textbf{Bash} (Bourne Again SHell) là shell mặc định trên hầu hết các bản phân phối Linux. Một Bash script là tệp văn bản chứa các lệnh shell được thực thi tuần tự. Bash có đủ cấu trúc của một ngôn ngữ lập trình: biến, điều kiện, vòng lặp, hàm và mảng.
+\textbf{Bash} (Bourne Again SHell) là shell mặc định của hầu hết bản phân phối Linux. Bash script là tệp văn bản chứa các lệnh shell được thực thi tuần tự, có đủ cấu trúc của một ngôn ngữ lập trình: biến, điều kiện, vòng lặp, hàm và mảng.
 
 \subsection{Cấu trúc một script chuẩn}
 \begin{Verbatim}
@@ -175,12 +226,10 @@ trap 'cleanup' EXIT          # dọn file tạm khi thoát
 main() { ... }               # chương trình chính trong hàm
 main "$@"
 \end{Verbatim}
-Ý nghĩa các tuỳ chọn \cmd{set}:
 \begin{itemize}
-  \item \cmd{-e}: dừng ngay khi một lệnh lỗi;
-  \item \cmd{-u}: báo lỗi khi dùng biến chưa khai báo;
-  \item \cmd{-o pipefail}: một pipeline bị coi là lỗi nếu bất kỳ lệnh nào trong đó lỗi;
-  \item \cmd{-E}: bẫy \cmd{ERR} có hiệu lực cả bên trong hàm.
+  \item \cmd{-e}: dừng ngay khi một lệnh lỗi; \cmd{-u}: báo lỗi khi dùng biến chưa khai báo;
+  \item \cmd{-o pipefail}: pipeline lỗi nếu bất kỳ lệnh nào trong đó lỗi;
+  \item \cmd{-E}: bẫy \cmd{ERR} có hiệu lực cả trong hàm và subshell.
 \end{itemize}
 
 \subsection{Các kỹ thuật được sử dụng}
@@ -190,72 +239,111 @@ main "$@"
 \toprule
 \textbf{Kỹ thuật} & \textbf{Ứng dụng trong toolkit}\\\midrule
 Hàm, biến \cmd{local}, mã thoát & Mỗi chức năng là một hàm \cmd{<module>\_<action>}\\
-\cmd{getopts} + tuỳ chọn dài & Phân tích \cmd{--tui}, \cmd{--cli}, \cmd{--dry-run}, \cmd{--yes}\\
+\cmd{getopts} + tuỳ chọn dài & \cmd{--tui}, \cmd{--cli}, \cmd{--dry-run}, \cmd{--yes}\\
 Mảng kết hợp (\cmd{declare -A}) & ``Registry'' lưu module, action, tham số\\
 Mở rộng tham số & \cmd{\$\{var:-mặc định\}}, \cmd{\$\{var//a/b\}}, \cmd{\$\{var\%\%.*\}}\\
-Biểu thức chính quy \cmd{[[ =\~{} ]]} & Kiểm tra username, PID, biểu thức cron\\
-Here-doc, \cmd{< <(...)}, \cmd{mapfile} & Đọc CSV nhân viên, crontab, danh sách tiến trình\\
-\cmd{awk} & Tổng hợp CPU/RAM theo người dùng, tách trường log\\
+Biểu thức chính quy \cmd{[[ =\~{} ]]}, \cmd{sed -E} & Kiểm tra username, PID, cron; tách IP/user khỏi log SSH\\
+Số học bit \cmd{\$(( a << 24 ))} & So khớp IP với dải mạng CIDR (whitelist)\\
+\cmd{< <(...)}, \cmd{mapfile}, here-doc & Đọc CSV nhân viên, crontab, danh sách tiến trình\\
+\cmd{awk} & Tổng hợp CPU/RAM theo người dùng, đếm lần đăng nhập thất bại theo IP\\
 \cmd{trap ERR/EXIT/INT} & Báo lỗi, dọn file tạm, xử lý Ctrl+C\\
-Tiến trình nền, \cmd{wait}, \cmd{timeout} & Tạo tải giả lập trong \cmd{alert stress}\\
-\cmd{flock} & Chống hai tiến trình sao lưu chạy cùng lúc\\
-\cmd{logger} & Ghi sự kiện vào journald/syslog\\
+\cmd{flock}, \cmd{timeout} & Chống sao lưu chạy trùng; không treo khi gửi mail\\
+\cmd{curl}, \cmd{sha256sum}, \cmd{logger} & Gọi Telegram Bot API; kiểm tra toàn vẹn; ghi journald\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \section{Người dùng, nhóm và quyền truy cập}
-Thông tin tài khoản được lưu ở các tệp sau:
-\begin{itemize}
-  \item \cmd{/etc/passwd}: tên đăng nhập, UID, GID, thư mục home, shell;
-  \item \cmd{/etc/shadow}: mật khẩu đã băm và chính sách hết hạn (chỉ root đọc được);
-  \item \cmd{/etc/group}: danh sách nhóm và thành viên.
-\end{itemize}
-Mỗi tệp và thư mục có quyền \textbf{rwx} cho ba đối tượng: chủ sở hữu (user), nhóm (group) và người khác (other). Quyền thường được biểu diễn bằng số bát phân, trong đó $r=4$, $w=2$, $x=1$. Ngoài ra có ba bit đặc biệt:
+Thông tin tài khoản lưu trong \cmd{/etc/passwd} (tên, UID, GID, home, shell), \cmd{/etc/shadow} (mật khẩu đã băm và chính sách hết hạn, chỉ root đọc được) và \cmd{/etc/group}. Mỗi tệp có quyền \textbf{rwx} cho chủ sở hữu, nhóm và người khác, biểu diễn bát phân với $r=4$, $w=2$, $x=1$. Ba bit đặc biệt:
 \begin{itemize}
   \item \textbf{SUID} (4): chương trình chạy với quyền của chủ sở hữu tệp;
-  \item \textbf{SGID} (2): trên thư mục, tệp mới tạo bên trong \textit{kế thừa nhóm} của thư mục. Toolkit dùng bit này cho thư mục phòng ban, với quyền \cmd{2770};
-  \item \textbf{Sticky bit} (1): trong thư mục ai cũng ghi được, mỗi người chỉ xoá được tệp của chính mình. Toolkit dùng bit này cho thư mục chung, với quyền \cmd{1777}.
+  \item \textbf{SGID} (2): trên thư mục, tệp mới tạo \textit{kế thừa nhóm} của thư mục — dùng cho thư mục phòng ban (\cmd{2770});
+  \item \textbf{Sticky bit} (1): trong thư mục ai cũng ghi được, mỗi người chỉ xoá được tệp của mình — dùng cho thư mục chung (\cmd{1777}).
 \end{itemize}
-Quyền quản trị được cấp qua nhóm \cmd{sudo} (Debian/Ubuntu) hoặc \cmd{wheel} (RHEL). Chính sách mật khẩu được điều khiển bằng \cmd{/etc/login.defs}, lệnh \cmd{chage} và module PAM \cmd{pam\_pwquality}.
+Quyền quản trị cấp qua nhóm \cmd{sudo} (Debian/Ubuntu) hoặc \cmd{wheel} (RHEL). Chính sách mật khẩu điều khiển bằng \cmd{/etc/login.defs} và lệnh \cmd{chage}. Tài khoản có \textbf{UID 0} có toàn quyền root, nên một tài khoản UID 0 lạ là dấu hiệu bị cài cửa hậu.
 
-\section{Tiến trình và tín hiệu}
-Mỗi tiến trình có một PID và một tiến trình cha (PPID). Kernel cung cấp thông tin về từng tiến trình qua hệ thống tệp ảo \cmd{/proc/<pid>/}. Một số công cụ quan trọng:
+\section{Tiến trình, tín hiệu và lập lịch CPU}
+Mỗi tiến trình có PID và tiến trình cha (PPID); kernel cung cấp thông tin qua hệ thống tệp ảo \cmd{/proc/<pid>/}. Bộ lập lịch mặc định của Linux là \textbf{CFS} (Completely Fair Scheduler, từ kernel 6.6 là EEVDF): chia thời gian CPU theo trọng số suy ra từ giá trị \textbf{nice} ($-20$ ưu tiên cao nhất đến $19$ thấp nhất). Công cụ: \cmd{ps}, \cmd{top}, \cmd{w}, \cmd{last}, \cmd{nice}/\cmd{renice}, \cmd{kill}. Hai tín hiệu hay dùng là \textbf{SIGTERM} (15) — yêu cầu kết thúc lịch sự — và \textbf{SIGKILL} (9) — buộc dừng ngay.
+
+\section{Quá trình khởi động và systemd}
+Máy Linux khởi động theo chuỗi: \textbf{BIOS/UEFI} $\rightarrow$ \textbf{bootloader} (GRUB) $\rightarrow$ \textbf{kernel} $\rightarrow$ tiến trình đầu tiên PID 1 là \textbf{systemd}. systemd quản lý mọi thành phần dưới dạng \textbf{unit}:
 \begin{itemize}
-  \item \cmd{ps}, \cmd{top}: liệt kê tiến trình;
-  \item \cmd{w}, \cmd{who}, \cmd{last}: phiên đăng nhập và lịch sử đăng nhập;
-  \item \cmd{nice}, \cmd{renice}: đổi độ ưu tiên, từ $-20$ (cao nhất) đến $19$ (thấp nhất);
-  \item \cmd{kill}: gửi tín hiệu tới tiến trình.
+  \item \textbf{service} (\cmd{.service}): một dịch vụ hoặc tác vụ; \cmd{Type=oneshot} cho tác vụ chạy xong rồi thoát;
+  \item \textbf{timer} (\cmd{.timer}): kích hoạt service theo lịch (\cmd{OnCalendar=}) hoặc theo chu kỳ (\cmd{OnUnitActiveSec=}); \cmd{Persistent=true} chạy bù nếu máy tắt đúng giờ hẹn;
+  \item \textbf{socket}, \textbf{target}, \textbf{mount}…
 \end{itemize}
-Hai tín hiệu hay dùng nhất là \textbf{SIGTERM} (15), yêu cầu kết thúc "lịch sự" để chương trình kịp dọn dẹp, và \textbf{SIGKILL} (9), buộc dừng ngay lập tức.
+Unit do quản trị viên tạo đặt trong \cmd{/etc/systemd/system/}, nạp bằng \cmd{systemctl daemon-reload} và bật bằng \cmd{systemctl enable --now}. Mọi đầu ra của service được \textbf{journald} thu thập, xem bằng \cmd{journalctl -u <unit>}.
 
-\section{Lập lịch tác vụ}
-\textbf{cron} chạy tác vụ định kỳ theo biểu thức gồm 5 trường: \textit{phút, giờ, ngày, tháng, thứ}. Ví dụ, \cmd{30 3 * * *} nghĩa là chạy lúc 03:30 mỗi ngày, còn \cmd{*/5 * * * *} nghĩa là chạy mỗi 5 phút.
+\section{Lập lịch tác vụ: cron và at}
+\textbf{cron} chạy tác vụ định kỳ theo biểu thức 5 trường \textit{phút giờ ngày tháng thứ}; ví dụ \cmd{30 3 * * *} là 03:30 mỗi ngày, \cmd{*/5 * * * *} là mỗi 5 phút. \textbf{at} hẹn chạy một lần (\cmd{at now + 2 minutes}). So với cron, systemd timer có log tập trung trong journald, chạy bù khi máy tắt, và kiểm soát tài nguyên (\cmd{Nice=}, \cmd{IOSchedulingClass=idle}).
 
-\textbf{at} hẹn chạy một lần, ví dụ \cmd{at now + 2 minutes}. \textbf{systemd timer} là cách lập lịch hiện đại: có ghi log vào journald và có thể chạy bù nếu máy tắt đúng giờ hẹn (\cmd{Persistent=true}).
-
-\section{Sao lưu}
-Toolkit áp dụng các nguyên tắc sao lưu sau:
+\section{Sao lưu và lưu trữ đám mây}
+Toolkit áp dụng các nguyên tắc:
 \begin{itemize}
-  \item nén bằng \cmd{tar}, giữ nguyên quyền và chủ sở hữu của tệp;
-  \item tạo \textbf{checksum SHA-256} để phát hiện bản sao bị hỏng hoặc bị sửa đổi;
+  \item nén bằng \cmd{tar}, giữ nguyên quyền và chủ sở hữu;
+  \item \textbf{checksum SHA-256} để phát hiện bản sao bị hỏng hoặc bị sửa;
   \item \textbf{xoay vòng}: chỉ giữ $N$ bản mới nhất;
-  \item lưu thêm một bản \textbf{ngoài máy chủ} bằng \cmd{rsync} qua SSH, theo tinh thần quy tắc 3-2-1;
-  \item định kỳ \textbf{kiểm tra khả năng khôi phục}.
+  \item \textbf{quy tắc 3-2-1}: 3 bản dữ liệu, trên 2 loại lưu trữ, 1 bản ở nơi khác. Toolkit đẩy bản sao lên \textbf{Google Drive}, nên dù máy chủ hỏng hoặc bị mã hoá tống tiền, bản sao vẫn còn.
 \end{itemize}
+Việc tải lên dùng \textbf{rclone}, xác thực bằng \textbf{OAuth 2.0}: người dùng đăng nhập Google trên máy có trình duyệt (\cmd{rclone authorize "drive"}), nhận token rồi dán vào máy chủ. Toolkit chỉ xin quyền \cmd{drive.file} — chỉ đọc/ghi được tệp do chính nó tạo, không thấy tài liệu khác trong Drive.
 
-\section{Giám sát và nhật ký hệ thống}
-Các chỉ số tài nguyên được đọc trực tiếp từ kernel:
+\section{Nhật ký hệ thống}
+\textbf{journald} thu thập log của kernel và mọi service; \textbf{rsyslog} có thể ghi lại thành tệp văn bản trong \cmd{/var/log} (\cmd{auth.log} cho xác thực, \cmd{syslog}, \cmd{kern.log}). Mỗi bản ghi syslog có \textbf{facility} (nguồn: \cmd{auth}=4, \cmd{authpriv}=10, \cmd{kern}=0…) và \textbf{mức độ} (\cmd{err}, \cmd{warning}…). SSH server ghi các dòng như:
+\begin{Verbatim}
+sshd[812]: Failed password for invalid user admin from 203.0.113.9 port 51622 ssh2
+sshd[812]: Invalid user oracle from 203.0.113.9 port 51630
+sshd-session[930]: Connection closed by authenticating user root 198.51.100.5 port 6011 [preauth]
+sshd[955]: Accepted publickey for hungnv from 192.168.1.20 port 50311 ssh2
+\end{Verbatim}
+Khi máy chủ \textbf{chỉ cho đăng nhập bằng SSH key}, bot dò mật khẩu không tạo dòng \cmd{Failed password} mà chỉ để lại \cmd{Invalid user} và \cmd{[preauth]}. Đây là chi tiết quan trọng khi thiết kế bộ phát hiện tấn công.
+
+\section{Giám sát tài nguyên}
+Các chỉ số đọc trực tiếp từ kernel: CPU từ \cmd{/proc/stat} (hiệu số giữa hai lần lấy mẫu), bộ nhớ từ \cmd{/proc/meminfo} (\textit{MemAvailable}), tải từ \cmd{/proc/loadavg}, dung lượng đĩa bằng \cmd{df}, cổng đang mở bằng \cmd{ss -tuln}.
+
+\section{Mạng, SSH và tường lửa}
+\textbf{SSH} (cổng 22) là kênh quản trị từ xa được mã hoá. Cấu hình máy chủ nằm ở \cmd{/etc/ssh/sshd\_config} và thư mục \cmd{sshd\_config.d/}; hai tham số bảo mật quan trọng là \cmd{PermitRootLogin no} và \cmd{MaxAuthTries}. Tường lửa của Linux là \textbf{netfilter}, điều khiển bằng \cmd{iptables}/\cmd{nftables} hoặc giao diện đơn giản \cmd{ufw}. Chặn một IP:
+\begin{Verbatim}
+iptables -I INPUT -s 203.0.113.9 -j DROP -m comment --comment "sysadmin-toolkit IDS"
+\end{Verbatim}
+Khi quản trị qua Internet mà không có IP public, có thể dùng VPN dạng lưới như \textbf{Tailscale} (mỗi máy nhận IP \cmd{100.x.x.x}). Không nên dùng tunnel kiểu ngrok cho SSH, vì máy chủ thấy mọi kết nối đến từ \cmd{127.0.0.1} và không biết IP thật của kẻ tấn công.
+
+\section{Hệ thống phát hiện xâm nhập (IDS)}
+\subsection{Khái niệm}
+\textbf{IDS} (Intrusion Detection System) là hệ thống theo dõi hoạt động của máy tính hoặc mạng để phát hiện dấu hiệu tấn công hoặc vi phạm chính sách, rồi cảnh báo cho quản trị viên. IDS được gọi tên theo \textit{mục đích}, không theo kỹ thuật bên trong. Có thể phân loại theo hai tiêu chí:
+
+\begin{table}[H]\centering\small
+\caption{Phân loại IDS}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{5.2cm}L}
+\toprule
+\textbf{Tiêu chí} & \textbf{Loại} & \textbf{Ví dụ}\\\midrule
+Vị trí theo dõi & \textbf{NIDS}: soi gói tin trên mạng & Snort, Suricata, Zeek\\
+ & \textbf{HIDS}: theo dõi chính máy chủ (log, tệp, tiến trình) & OSSEC, Wazuh, AIDE, fail2ban\\\midrule
+Cách phát hiện & \textbf{Dựa trên luật / chữ ký}: so với mẫu tấn công đã biết, kèm ngưỡng & Luật Snort, regex fail2ban\\
+ & \textbf{Dựa trên bất thường}: học trạng thái ``bình thường'', báo khi lệch xa (thống kê, học máy) & Chủ yếu trong nghiên cứu; một số sản phẩm thương mại\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Phần lớn IDS dùng trong doanh nghiệp là \textbf{dựa trên luật}, vì dễ giải thích, ít báo nhầm và chạy nhẹ. Ví dụ một luật Snort phát hiện dò mật khẩu SSH — về bản chất là một điều kiện ``nếu… thì báo động'':
+\begin{Verbatim}
+alert tcp any any -> $HOME_NET 22 (msg:"SSH brute force";
+      detection_filter:track by_src, count 5, seconds 60; sid:1000001;)
+\end{Verbatim}
+
+\subsection{Kiểm tra toàn vẹn tệp}
+Một nhánh khác của HIDS là \textbf{kiểm tra toàn vẹn} (AIDE, Tripwire): chụp checksum các tệp quan trọng lúc hệ thống còn sạch (\textit{baseline}), định kỳ so sánh lại. Tệp \cmd{/etc/passwd} hay \cmd{sshd\_config} bị sửa ngoài ý muốn là dấu hiệu kẻ xâm nhập đang cài cửa hậu.
+
+\subsection{Vị trí của IDS trong toolkit}
+IDS của toolkit là một \textbf{HIDS dựa trên luật} kết hợp \textbf{kiểm tra toàn vẹn}: nó gộp ý tưởng của fail2ban (đọc log, chặn IP) và AIDE (so checksum), viết hoàn toàn bằng Bash. Toolkit \textbf{không dùng học máy}; hướng phát hiện bất thường bằng thống kê được nêu ở phần hướng phát triển.
+
+\section{Kênh cảnh báo}
 \begin{itemize}
-  \item mức sử dụng CPU: tính từ \cmd{/proc/stat}, bằng hiệu số giữa hai lần lấy mẫu;
-  \item bộ nhớ: \cmd{/proc/meminfo}, dùng chỉ số \textit{MemAvailable};
-  \item tải hệ thống: \cmd{/proc/loadavg};
-  \item dung lượng đĩa: lệnh \cmd{df}.
+  \item \textbf{Email}: gửi qua SMTP bằng \cmd{msmtp} (ví dụ Gmail với Mật khẩu ứng dụng). Tiêu đề tiếng Việt mã hoá theo RFC 2047 (\cmd{=?UTF-8?B?...?=}).
+  \item \textbf{Telegram Bot API}: gọi HTTPS \cmd{POST https://api.telegram.org/bot<TOKEN>/sendMessage} bằng \cmd{curl} với \cmd{chat\_id} và nội dung — tin tới điện thoại gần như tức thời.
 \end{itemize}
-Nhật ký hệ thống do \textbf{journald} thu thập (\cmd{journalctl}) và có thể chuyển tiếp sang \textbf{rsyslog} để lưu thành tệp văn bản trong \cmd{/var/log}.
 
 \section{Giao diện menu trong terminal}
-\cmd{dialog} và \cmd{whiptail} vẽ hộp thoại (menu, ô nhập, hộp xác nhận, hộp xem văn bản) ngay trong terminal bằng thư viện ncurses/newt. Nhờ vậy giao diện hoạt động tốt qua SSH, không cần môi trường đồ hoạ. Lựa chọn của người dùng được trả về qua luồng lỗi chuẩn (stderr).
+\cmd{dialog} và \cmd{whiptail} vẽ hộp thoại ngay trong terminal bằng ncurses/newt, nên hoạt động tốt qua SSH mà không cần môi trường đồ hoạ.
 
 % ================================================================ CHƯƠNG 3 ===
 \chapter{Phân tích và thiết kế}
@@ -263,25 +351,25 @@ Nhật ký hệ thống do \textbf{journald} thu thập (\cmd{journalctl}) và c
 \section{Yêu cầu chức năng}
 \begin{table}[H]\centering\small
 \caption{Ánh xạ nhu cầu của Tech Lead sang 5 chức năng}
-\begin{tabularx}{\textwidth}{c>{\raggedright\arraybackslash}p{4.1cm}>{\raggedright\arraybackslash}p{1.9cm}L}
+\begin{tabularx}{\textwidth}{c>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{1.9cm}L}
 \toprule
 \textbf{\#} & \textbf{Nhu cầu} & \textbf{Chức năng} & \textbf{Các action chính}\\\midrule
-1 & Cấp quyền, quản lý nhân viên & \cmd{users} & create, setup-dirs, sudo, lock/unlock, passwd, kick, \textbf{offboard}, audit, demo\\
-2 & Ai đang làm gì, ai treo process & \cmd{monitor} & \textbf{who}, \textbf{usage}, top, \textbf{hogs}, renice, kill, troubleshoot, report, watch\\
-3 & Cảnh báo tức thời ngày đêm & \cmd{alert} & \textbf{check}, setup-telegram, setup-mail, test, set-threshold, stress\\
-4 & Sao lưu tài sản số & \cmd{backup} & \textbf{run}, list, verify, restore, rotate, history\\
-5 & Tự động hoá bảo dưỡng & \cmd{scheduler} & \textbf{install}, \textbf{maintenance}, add, explain, at, timers-install\\
+1 & Cấp quyền, quản lý nhân viên & \cmd{users} & create, setup-dirs, sudo, lock/unlock, kick, \textbf{offboard}, audit\\
+2 & Ai đang làm gì, ai treo process, log có gì lạ & \cmd{monitor} & \textbf{who}, \textbf{usage}, \textbf{hogs}, renice, kill, troubleshoot, \textbf{logcheck}, \textbf{log-upload}, report\\
+3 & Cảnh báo sự cố và tấn công ngày đêm & \cmd{alert} & \textbf{check}, \textbf{security}, baseline, \textbf{ban}/unban/banned, setup-telegram, setup-mail, test\\
+4 & Sao lưu an toàn, có bản ngoài máy & \cmd{backup} & \textbf{run}, verify, restore, rotate, \textbf{cloud-setup}, cloud-list\\
+5 & Tự động hoá bảo dưỡng & \cmd{scheduler} & install, \textbf{timers-install}, maintenance, explain, at\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \section{Yêu cầu phi chức năng}
 \begin{itemize}
-  \item \textbf{Vận hành từ xa}: mọi chức năng dùng được qua SSH, không cần môi trường đồ hoạ.
-  \item \textbf{An toàn}: thao tác thay đổi hệ thống phải được xác nhận và có chế độ chạy thử. Toolkit từ chối thao tác lên tài khoản hệ thống (UID $<$ 1000) và PID 1.
-  \item \textbf{Lặp lại được (idempotent)}: chạy lại một lệnh không gây trùng lặp, ví dụ tạo lại user đã có hoặc cài lại lịch cron.
-  \item \textbf{Truy vết}: mọi lệnh thay đổi hệ thống đều được ghi log ra tệp và journald.
-  \item \textbf{Di động}: chạy trên Debian/Ubuntu và RHEL/Rocky; có bản Docker.
+  \item \textbf{Vận hành từ xa}: mọi chức năng dùng được qua SSH, không cần đồ hoạ.
+  \item \textbf{An toàn}: thao tác thay đổi hệ thống phải xác nhận, có dry-run; từ chối thao tác lên tài khoản hệ thống (UID $<$ 1000) và PID 1; không bao giờ chặn IP trong danh sách tin cậy.
+  \item \textbf{Không spam}: mỗi loại cảnh báo chỉ gửi lại sau một khoảng chờ (mặc định 30 phút).
+  \item \textbf{Lặp lại được}: chạy lại một lệnh không gây trùng lặp.
+  \item \textbf{Truy vết}: mọi lệnh thay đổi hệ thống ghi log ra tệp và journald.
 \end{itemize}
 
 \section{Kiến trúc tổng thể}
@@ -293,16 +381,16 @@ Nhật ký hệ thống do \textbf{journald} thu thập (\cmd{journalctl}) và c
   \node[box=2.6cm, below left=8mm and 2mm of user] (tui) {Giao diện TUI\\\scriptsize lib/tui.sh};
   \node[box=2.6cm, below right=8mm and 2mm of user] (cli) {Dòng lệnh CLI\\\scriptsize lib/cli.sh};
   \node[box=6cm, below=24mm of user, fill=amber!25] (disp) {Điểm vào \texttt{sysadmin.sh}\\\scriptsize tuỳ chọn · bẫy lỗi · dispatcher};
-  \node[box=6cm, below=of disp] (common) {Thư viện chung \texttt{lib/common.sh}\\\scriptsize log · dry-run · xác nhận · cấu hình · registry};
+  \node[box=6cm, below=of disp] (common) {Thư viện \texttt{lib/common.sh} · \texttt{lib/cloud.sh}\\\scriptsize log · dry-run · cấu hình · registry · Google Drive};
   \node[box=1.9cm, below=12mm of common, xshift=-6.0cm] (m1) {users};
   \node[box=1.9cm, right=3mm of m1] (m2) {monitor};
-  \node[box=1.9cm, right=3mm of m2] (m3) {alert};
+  \node[box=1.9cm, right=3mm of m2] (m3) {alert\\\scriptsize + IDS};
   \node[box=1.9cm, right=3mm of m3] (m4) {backup};
   \node[box=1.9cm, right=3mm of m4] (m5) {scheduler};
   \node[draw=teal, dashed, rounded corners, fit=(m1)(m5), inner sep=5pt, label={[font=\scriptsize\sffamily,teal]below:modules/*.sh — 5 chức năng}] (mods) {};
-  \node[box=3.2cm, below=14mm of mods, xshift=-3.4cm, fill=white] (sys) {Hệ điều hành\\\scriptsize useradd · ps · tar · crontab};
+  \node[box=3.2cm, below=14mm of mods, xshift=-3.4cm, fill=white] (sys) {Hệ điều hành\\\scriptsize useradd · ps · tar · iptables · systemd};
   \node[box=3.2cm, below=14mm of mods, xshift=0.6cm, fill=white] (cfg) {config/\\\scriptsize toolkit.conf · users.csv};
-  \node[box=3.2cm, below=14mm of mods, xshift=4.6cm, fill=white] (out) {logs/ · reports/\\\scriptsize journald · email · Telegram};
+  \node[box=3.2cm, below=14mm of mods, xshift=4.6cm, fill=white] (out) {Bên ngoài\\\scriptsize Telegram · email · Google Drive};
   \draw[arr] (user) -- (tui); \draw[arr] (user) -- (cli);
   \draw[arr] (tui) -- node[left,font=\scriptsize]{gọi lệnh CLI} (disp); \draw[arr] (cli) -- (disp);
   \draw[arr] (disp) -- (common); \draw[arr] (common) -- (mods);
@@ -310,30 +398,19 @@ Nhật ký hệ thống do \textbf{journald} thu thập (\cmd{journalctl}) và c
 \end{tikzpicture}
 \caption{Kiến trúc LinuxAdmin Toolkit}
 \end{figure}
-
-Điểm mấu chốt của thiết kế là \textbf{giao diện chỉ là lớp vỏ}. Khi người dùng chọn một chức năng trên menu TUI, toolkit hỏi tham số qua hộp thoại, sau đó gọi lại chính nó dưới dạng lệnh CLI trong một tiến trình riêng, ví dụ \cmd{sysadmin monitor hogs 90 30}. Kết quả được hiển thị kèm lệnh tương đương. Nhờ vậy hai chế độ luôn cho kết quả giống hệt nhau, và người học giao diện cũng đồng thời học được dòng lệnh.
+Điểm mấu chốt: \textbf{giao diện chỉ là lớp vỏ}. Khi chọn một chức năng trên menu, toolkit hỏi tham số qua hộp thoại rồi gọi lại chính nó dưới dạng lệnh CLI, ví dụ \cmd{sysadmin monitor hogs 90 30}. Hai chế độ vì vậy luôn cho kết quả giống hệt nhau.
 
 \section{Cơ chế ``registry'': khai báo chức năng một lần}
-Mỗi module tự khai báo các action của mình kèm cờ và danh sách tham số. Từ khai báo đó, trang trợ giúp CLI, menu CLI và menu TUI đều được \textbf{sinh tự động}:
+Mỗi module tự khai báo action kèm cờ và tham số; trang trợ giúp, menu CLI và menu TUI đều được \textbf{sinh tự động}:
 \begin{Verbatim}
-register_module monitor 2 "Giám sát tài nguyên & hoạt động nhân viên"
-register_action hogs "" "Phát hiện process treo ngốn tài nguyên" \
-                "Ngưỡng CPU (%)=$HOG_CPU" "Ngưỡng RAM (%)=$HOG_MEM"
-register_action kill "rd" "Dừng tiến trình gây sự cố" \
-                "PID=@_pick_pid" "Tín hiệu=TERM|KILL|HUP|STOP|CONT"
+register_module alert 3 "Cảnh báo sự cố & phát hiện tấn công"
+register_action security "r"  "Phát hiện tấn công bất thường (IDS)"
+register_action ban      "rd" "Chặn một IP bằng tường lửa" "Địa chỉ IP"
 \end{Verbatim}
-Quy ước khai báo:
-\begin{itemize}
-  \item cờ \cmd{r}: action cần quyền root;
-  \item cờ \cmd{d}: action thay đổi hệ thống, phải hỏi xác nhận;
-  \item tham số dạng \cmd{"Lời nhắc=mặc định"}: có giá trị mặc định;
-  \item tham số dạng \cmd{a|b|c}: chọn một trong danh sách;
-  \item tham số dạng \cmd{@hàm}: chọn từ danh sách động do hàm sinh ra, ví dụ danh sách tiến trình.
-\end{itemize}
-Hàm thực thi tương ứng có tên \cmd{monitor\_hogs}, \cmd{monitor\_kill}. Muốn thêm chức năng mới, chỉ cần tạo thêm một tệp trong \cmd{modules/}.
+Cờ \cmd{r}: cần root; cờ \cmd{d}: thay đổi hệ thống, phải xác nhận. Tham số dạng \cmd{"Lời nhắc=mặc định"}, \cmd{a|b|c} (chọn một) hoặc \cmd{@hàm} (danh sách động). Hàm thực thi tương ứng là \cmd{alert\_security}, \cmd{alert\_ban}.
 
 \section{Chế độ chạy thử (dry-run)}
-Mọi lệnh làm thay đổi hệ thống đều được bọc qua hàm \cmd{run}. Ở chế độ \cmd{--dry-run}, hàm này chỉ in lệnh ra mà không thực thi. Ở chế độ thường, nó ghi log trước khi chạy và báo lỗi rõ ràng nếu lệnh thất bại:
+Mọi lệnh thay đổi hệ thống được bọc qua hàm \cmd{run}: ở chế độ \cmd{--dry-run} chỉ in lệnh, ở chế độ thường ghi log rồi chạy và báo lỗi rõ ràng:
 \begin{Verbatim}
 run() {
   if [[ $DRY_RUN == 1 ]]; then
@@ -342,183 +419,356 @@ run() {
   _log_write CMD "$(shell_quote "$@")"
   "$@" && return 0
   local rc=$?
-  log_error "Lệnh thất bại (mã $rc): $(shell_quote "$@")"
-  return "$rc"
+  log_error "Lệnh thất bại (mã $rc): $(shell_quote "$@")"; return "$rc"
 }
 \end{Verbatim}
 
-\section{Tổ chức mã nguồn và cấu hình}
+\section{Thiết kế bộ phát hiện xâm nhập}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[font=\sffamily\small, node distance=5mm,
+  box/.style={draw=navy, fill=mint, rounded corners=3pt, minimum height=9mm, align=center, text width=#1},
+  box/.default=3.4cm, arr/.style={-{Stealth}, thick, teal}]
+  \node[box=3.4cm, fill=white] (log) {Log 10 phút gần nhất\\\scriptsize journald / auth.log};
+  \node[box=3.4cm, fill=white, below=of log] (sys) {Trạng thái hiện tại\\\scriptsize tệp · user · cổng · process};
+  \node[box=3.4cm, fill=white, below=of sys] (base) {Baseline\\\scriptsize \texttt{alert baseline}};
+  \node[box=3.6cm, right=14mm of log] (r1) {Luật 1–5\\\scriptsize dò mật khẩu, dò user, chiếm tài khoản, sudo, quét cổng};
+  \node[box=3.6cm, right=14mm of base, yshift=6mm] (r2) {Luật 6–9 (so sánh)\\\scriptsize tệp bị sửa, user lạ/UID 0, cổng mới, process từ /tmp};
+  \node[box=3.0cm, right=12mm of r1, yshift=-14mm, fill=amber!25] (dedup) {Chống trùng\\\scriptsize mỗi dấu hiệu\\30 phút báo 1 lần};
+  \node[box=2.6cm, right=8mm of dedup, yshift=10mm, fill=navy!10] (send) {Telegram\\+ email};
+  \node[box=2.6cm, right=8mm of dedup, yshift=-10mm, fill=brick!15] (ban) {Chặn IP\\\scriptsize nếu AUTO\_BAN};
+  \draw[arr] (log) -- (r1); \draw[arr] (sys) -- (r2.west); \draw[arr] (base) -- (r2.west);
+  \draw[arr] (r1) -- (dedup); \draw[arr] (r2) -- (dedup);
+  \draw[arr] (dedup) -- (send); \draw[arr] (dedup) -- (ban);
+\end{tikzpicture}
+\caption{Luồng xử lý của \texttt{alert security}}
+\end{figure}
+
+\begin{table}[H]\centering\small
+\caption{9 luật phát hiện của IDS}
+\begin{tabularx}{\textwidth}{c>{\raggedright\arraybackslash}p{6.4cm}Lc}
+\toprule
+\textbf{\#} & \textbf{Dấu hiệu} & \textbf{Ý nghĩa} & \textbf{Mức}\\\midrule
+1 & $\ge$ 5 lần đăng nhập SSH thất bại từ cùng một IP & Dò mật khẩu (brute-force) & WARN\\
+2 & $\ge$ 5 username không tồn tại bị thử & Dò tên tài khoản (password spraying) & WARN\\
+3 & IP vừa dò mật khẩu \textbf{đăng nhập thành công} & Có thể đã bị chiếm tài khoản & FAIL\\
+4 & sudo sai nhiều lần; user ngoài sudoers dùng sudo & Cố leo thang đặc quyền & WARN/FAIL\\
+5 & Tường lửa chặn $\ge$ 20 gói từ một IP & Quét cổng & WARN\\
+6 & Checksum \cmd{passwd}, \cmd{shadow}, \cmd{sudoers}, \cmd{sshd\_config}… thay đổi & Sửa cấu hình hệ thống & FAIL\\
+7 & Tài khoản mới không tạo qua toolkit; tài khoản UID 0 & Cài tài khoản cửa hậu & FAIL\\
+8 & Cổng mạng mới đang lắng nghe & Chương trình cửa hậu chờ kết nối & WARN\\
+9 & Tiến trình chạy từ \cmd{/tmp}, \cmd{/var/tmp}, \cmd{/dev/shm} & Mã độc (ví dụ đào coin) & FAIL\\
+\bottomrule
+\end{tabularx}
+\end{table}
+Để không báo nhầm khi chính quản trị viên thay đổi hệ thống: tạo user bằng toolkit thì baseline tự cập nhật; sửa cấu hình bằng tay thì chạy \cmd{alert baseline}.
+
+\section{Mô hình triển khai thực tế}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[font=\sffamily\small,
+  dev/.style={draw=navy, fill=mint, rounded corners=3pt, minimum height=12mm, align=center, text width=#1},
+  dev/.default=3.4cm, arr/.style={-{Stealth}, thick, teal}, bad/.style={-{Stealth}, thick, brick, dashed}]
+  \node[dev=4.2cm, fill=amber!25] (srv) {\textbf{technova-core-srv}\\\scriptsize Ubuntu thật · toolkit · 4 systemd timer};
+  \node[dev, above left=16mm and 4mm of srv] (l1) {\textbf{Laptop 1}\\\scriptsize anh Hưng (whitelist)};
+  \node[dev, above right=16mm and 4mm of srv] (l2) {\textbf{Laptop 2}\\\scriptsize nhân viên / kẻ tấn công};
+  \node[dev=3cm, below left=16mm and 4mm of srv, fill=navy!10] (tg) {Telegram\\\scriptsize trên điện thoại};
+  \node[dev=3cm, below right=16mm and 4mm of srv, fill=navy!10] (gd) {Google Drive\\\scriptsize backups/ · logs/};
+  \draw[arr] (l1) -- node[left,font=\scriptsize]{SSH quản trị} (srv);
+  \draw[arr] (l2) -- node[right,font=\scriptsize]{SSH làm việc} (srv);
+  \draw[bad] ([xshift=6mm]l2.south) -- node[right,font=\scriptsize,brick]{dò mật khẩu → bị chặn} ([xshift=12mm]srv.north);
+  \draw[arr] (srv) -- node[left,font=\scriptsize]{cảnh báo} (tg);
+  \draw[arr] (srv) -- node[right,font=\scriptsize]{rclone, mỗi đêm} (gd);
+\end{tikzpicture}
+\caption{Bố trí triển khai và demo trên máy chủ thật}
+\end{figure}
+Máy chủ là \textbf{máy Ubuntu thật}, không phải container: toolkit quản trị chính máy đó (user, tiến trình, log, tường lửa, systemd). Container Docker chỉ dùng để chạy bộ kiểm thử tự động và làm phương án dự phòng, vì container chỉ thấy user/tiến trình/log bên trong nó và không có systemd.
+
+\section{Tổ chức mã nguồn}
 \begin{Verbatim}
 sysadmin-toolkit/
 ├── sysadmin.sh            điểm vào: getopts, chọn chế độ, trap
-├── install.sh             cài vào /opt, tạo lệnh "sysadmin"
-├── lib/   common.sh · cli.sh · tui.sh
+├── install.sh             cài vào /opt; --server: triển khai lên máy thật
+├── lib/   common.sh · cli.sh · tui.sh · cloud.sh
 ├── modules/   users · monitor · alert · backup · scheduler
 ├── config/    toolkit.conf · users.csv
-├── systemd/   mẫu .service/.timer
-├── tests/demo-test.sh     kiểm thử tự động 55 bước
+├── systemd/   toolkit-{monitor,backup,maintenance,report}.{service,timer}
+├── tests/demo-test.sh     kiểm thử tự động 75 bước
 └── Dockerfile · docker-compose.yml · package.sh
 \end{Verbatim}
-Tệp \cmd{config/toolkit.conf} chứa các tham số vận hành: tên công ty, danh sách phòng ban, ngưỡng cảnh báo, thư mục sao lưu, lịch cron, kênh email/Telegram. Các tham số này được nạp lại ở mỗi lần chạy, nên sửa xong là có hiệu lực ngay.
 
 % ================================================================ CHƯƠNG 4 ===
 \chapter{Hiện thực}
 
 \section{Giao diện và chế độ làm việc}
-Khi chạy \cmd{sysadmin} không kèm tham số, toolkit cho người dùng chọn chế độ. Chế độ TUI hiển thị menu 5 chức năng (Hình~\ref{fig:tui}). Thanh tiêu đề luôn cho biết người dùng, máy chủ, bộ giao diện đang dùng và trạng thái dry-run. Với các action có tham số, giao diện hỏi lần lượt bằng hộp thoại (Hình~\ref{fig:tuiparam}). Với thao tác thay đổi hệ thống, giao diện cho chọn \textit{Chạy thật / Chạy thử / Huỷ}.
-
-\begin{figure}[H]\centering\includegraphics[width=0.86\textwidth]{tui-main.png}
-\caption{Menu chính của giao diện TUI khi SSH vào technova-core-srv}\label{fig:tui}\end{figure}
-\begin{figure}[H]\centering\includegraphics[width=0.86\textwidth]{tui-result.png}
-\caption{Giao diện hỏi tham số bằng hộp thoại (monitor → hogs)}\label{fig:tuiparam}\end{figure}
+Chạy \cmd{sysadmin} không tham số, toolkit cho chọn chế độ. Chế độ TUI hiển thị menu 5 chức năng; thanh tiêu đề cho biết người dùng, máy chủ và trạng thái dry-run. Với thao tác thay đổi hệ thống, giao diện cho chọn \textit{Chạy thật / Chạy thử / Huỷ}.
+\anhdemo{06-tui-main.png}{Menu chính của giao diện TUI khi SSH vào máy chủ}{Laptop 1: \texttt{ssh hungnv@<IP>} rồi \texttt{sudo sysadmin --tui}. Chụp menu 5 chức năng.}
 
 \section{Chức năng 1 — users: quản lý nhân viên và phân quyền}
-Danh sách nhân viên được khai báo trong \cmd{config/users.csv}. Mỗi dòng gồm username, họ tên, phòng ban, shell và quyền sudo. Lệnh \cmd{users create} xử lý từng nhân viên theo các bước:
-\begin{enumerate}
-  \item kiểm tra tên hợp lệ bằng biểu thức chính quy;
-  \item bỏ qua nếu tài khoản đã tồn tại;
-  \item tạo nhóm phòng ban nếu chưa có;
-  \item gọi \cmd{useradd} với nhóm phụ (thêm nhóm sudo/wheel nếu được cấp quyền);
-  \item đặt mật khẩu ngẫu nhiên 12 ký tự qua \cmd{chpasswd};
-  \item ép đổi mật khẩu ở lần đăng nhập đầu và áp chính sách hết hạn (\cmd{chage -d 0 -M 90 -m 1 -W 7}).
-\end{enumerate}
-Mật khẩu tạm được lưu vào một tệp CSV có quyền \cmd{600}.
+Danh sách nhân viên khai báo trong \cmd{config/users.csv} (username, họ tên, phòng ban, shell, sudo). \cmd{users create} xử lý từng dòng: kiểm tra tên hợp lệ, bỏ qua nếu đã có, tạo nhóm phòng ban, \cmd{useradd}, đặt mật khẩu ngẫu nhiên qua \cmd{chpasswd}, ép đổi mật khẩu ở lần đăng nhập đầu và áp chính sách hết hạn (\cmd{chage -d 0 -M 90 -m 1 -W 7}). Mật khẩu tạm lưu trong tệp quyền \cmd{600}.
 
-Lệnh \cmd{users setup-dirs} tạo cây thư mục dự án: \cmd{/srv/technova/\{dev,data,qa\}} với quyền \cmd{2770} và bit SGID, cùng thư mục \cmd{chung/} với quyền \cmd{1777} và sticky bit. Lệnh \cmd{users demo} tự động \textbf{thử quyền truy cập thực tế} dưới danh nghĩa từng nhân viên bằng \cmd{runuser} (Hình~\ref{fig:usersdemo}).
+\cmd{users setup-dirs} tạo \cmd{/srv/technova/\{dev,data,qa\}} quyền \cmd{2770} (SGID) và thư mục \cmd{chung/} quyền \cmd{1777} (sticky).
+\anhdemo{07-users-list.png}{Danh sách nhân viên theo phòng ban}{Laptop 1: \texttt{sudo sysadmin users list}.}
+\anhdemo{08-phan-quyen.png}{Nhân viên phòng data không xem được thư mục phòng dev; file mới kế thừa nhóm nhờ SGID}{Laptop 2 (đăng nhập \texttt{cuonglv}): \texttt{ls /srv/technova/dev} (bị Permission denied), rồi \texttt{echo "model v1" > /srv/technova/data/model.txt; ls -l /srv/technova/data}.}
 
-\begin{figure}[H]\centering\includegraphics[width=0.92\textwidth]{users-demo.png}
-\caption{Kiểm chứng phân quyền theo phòng ban}\label{fig:usersdemo}\end{figure}
+Khi nhân viên nghỉ việc, \cmd{users offboard} chạy liền 5 bước: khoá mật khẩu và đặt hết hạn (\cmd{usermod -L -e 1}, chặn cả SSH key); ngắt mọi phiên (\cmd{loginctl terminate-user}, \cmd{pkill -KILL -u}); thu hồi sudo; xoá crontab cá nhân; nén thư mục home để lưu trữ. \cmd{users audit} kiểm tra tài khoản UID 0, mật khẩu rỗng, quyền \cmd{/etc/shadow} và \cmd{sudoers}, quy tắc NOPASSWD, tệp SUID và cấu hình SSH.
+\anhdemo{09-users-audit.png}{Kiểm tra an ninh tài khoản}{Laptop 1: \texttt{sudo sysadmin users audit}. Chụp phần tổng kết.}
 
-Khi nhân viên nghỉ việc, lệnh \cmd{users offboard} thực hiện liền một quy trình 5 bước (Hình~\ref{fig:offboard}):
-\begin{enumerate}
-  \item khoá mật khẩu và đặt ngày hết hạn tài khoản (\cmd{usermod -L -e 1}), chặn cả đăng nhập bằng SSH key;
-  \item ngắt mọi phiên làm việc (\cmd{loginctl terminate-user}, \cmd{pkill -KILL -u});
-  \item thu hồi quyền sudo;
-  \item xoá crontab cá nhân;
-  \item nén thư mục home để lưu trữ.
-\end{enumerate}
-Lệnh \cmd{users audit} kiểm tra bảo mật trên 10 nhóm tiêu chí: tài khoản UID 0, mật khẩu rỗng hoặc không hết hạn, quyền của \cmd{/etc/shadow} và \cmd{/etc/sudoers}, quy tắc NOPASSWD, quyền thư mục home, tệp ai cũng ghi được, tệp SUID và cấu hình SSH.
-
-\begin{figure}[H]\centering\includegraphics[width=0.86\textwidth]{offboard.png}
-\caption{Quy trình nhân viên nghỉ việc (offboard)}\label{fig:offboard}\end{figure}
-
-\section{Chức năng 2 — monitor: giám sát tài nguyên và nhân viên}
-\begin{itemize}
-  \item \cmd{monitor who} trả lời câu hỏi \textit{ai đang đăng nhập, từ IP nào, đang chạy lệnh gì} (dùng \cmd{w}, \cmd{last}, \cmd{lastb}).
-  \item \cmd{monitor usage} cộng dồn CPU/RAM \textbf{theo từng nhân viên} bằng \cmd{awk}:
-\end{itemize}
+\section{Chức năng 2 — monitor: giám sát tài nguyên, nhân viên và nhật ký}
+\cmd{monitor who} cho biết ai đang đăng nhập, từ IP nào, đang chạy lệnh gì. \cmd{monitor usage} cộng dồn CPU/RAM \textbf{theo từng nhân viên}:
 \begin{Verbatim}
-ps -eo user:20=,uid=,pcpu=,pmem=,rss= | awk -v min="$UID_MIN" '
-  { u=$1; p[u]++; c[u]+=$3; m[u]+=$4; r[u]+=$5; id[u]=$2 }
+ps -eo user:20=,uid=,pcpu=,pmem=,rss= | awk '
+  { u=$1; p[u]++; c[u]+=$3; m[u]+=$4; r[u]+=$5 }
   END { for (u in p) printf "%.1f\t%s %d %.1f %.1f %.0f\n",
         c[u], u, p[u], c[u], m[u], r[u]/1024 }' | sort -rn
 \end{Verbatim}
-\begin{itemize}
-  \item \cmd{monitor hogs} lọc các process vượt ngưỡng (mặc định $\ge$ 90\% CPU hoặc $\ge$ 30\% RAM) và hiển thị dòng lệnh đầy đủ, giúp nhận ra ngay ai đang treo process gì (Hình~\ref{fig:hogs}).
-  \item Để xử lý, Tech Lead có thể hạ độ ưu tiên bằng \cmd{monitor renice} (mềm mỏng) hoặc dừng tiến trình bằng \cmd{monitor kill}. Lệnh kill có xác nhận và từ chối PID 1.
-\end{itemize}
+\cmd{monitor hogs} lọc tiến trình vượt ngưỡng ($\ge$ 90\% CPU hoặc $\ge$ 30\% RAM) và hiện dòng lệnh đầy đủ. Xử lý bằng \cmd{monitor renice} (hạ ưu tiên) hoặc \cmd{monitor kill} (có xác nhận, từ chối PID 1).
+\anhdemo{10-monitor-who.png}{Nhân viên đang đăng nhập từ máy khác}{Laptop 1: \texttt{sysadmin monitor who} khi Laptop 2 đang SSH bằng \texttt{cuonglv}. Thấy IP của Laptop 2.}
+\anhdemo{11-monitor-hogs.png}{Phát hiện tiến trình \texttt{train\_model.py} của cuonglv chiếm CPU}{Laptop 2 chạy tiến trình nặng (bước 4.1 trong kịch bản demo), Laptop 1: \texttt{sysadmin monitor usage} và \texttt{sysadmin monitor hogs}.}
 
-\begin{figure}[H]\centering\includegraphics[width=0.95\textwidth]{monitor-hogs.png}
-\caption{Phát hiện Data Analyst \texttt{cuonglv} treo \texttt{train\_model.py} chiếm 99\% CPU}\label{fig:hogs}\end{figure}
+\textbf{Kiểm tra nhật ký} — \cmd{monitor logcheck [giờ]} đọc journald hoặc \cmd{/var/log} và tổng hợp 7 mục: đăng nhập SSH thất bại theo IP, tên user bị dò, đăng nhập thành công/bằng root, sudo/su, thay đổi tài khoản, dịch vụ lỗi, sự kiện kernel (hết RAM, segfault, lỗi đĩa), tường lửa chặn. \cmd{monitor log-upload} đóng gói báo cáo logcheck cùng \cmd{syslog}, \cmd{auth.log} và log của toolkit thành \cmd{.tar.gz} kèm SHA-256, rồi tải lên Google Drive.
 
-Ngoài ra, module còn có:
-\begin{itemize}
-  \item \cmd{troubleshoot}: quy trình chẩn đoán 10 bước (tải, CPU, iowait, RAM/swap, OOM, đĩa/inode, dịch vụ lỗi, mạng/DNS, log lỗi, NTP/zombie), kèm gợi ý xử lý;
-  \item \cmd{report}: xuất báo cáo HTML có biểu đồ CPU/RAM theo thời gian;
-  \item \cmd{watch}: bảng theo dõi thời gian thực.
-\end{itemize}
+Ngoài ra: \cmd{troubleshoot} (chẩn đoán 10 bước), \cmd{report} (báo cáo HTML có biểu đồ), \cmd{watch} (bảng theo dõi thời gian thực).
 
-\section{Chức năng 3 — alert: cảnh báo sự cố tức thời}
-\cmd{alert check} được cron gọi mỗi 5 phút và thực hiện tuần tự:
-\begin{enumerate}
-  \item đo CPU (lấy mẫu \cmd{/proc/stat}), RAM, ổ đĩa, rồi ghi vào \cmd{metrics.csv};
-  \item phát hiện process ngốn tài nguyên, kèm tên nhân viên đang chạy;
-  \item phát hiện dịch vụ systemd bị lỗi;
-  \item đếm số lần đăng nhập SSH thất bại trong 10 phút (dấu hiệu bị dò mật khẩu);
-  \item nếu có sự cố, gửi cảnh báo qua \textbf{email} (msmtp/mail) và \textbf{Telegram} (gọi Bot API bằng \cmd{curl}).
-\end{enumerate}
-Có \textbf{thời gian chờ (cooldown) 30 phút} để không gửi trùng lặp lúc nửa đêm. Khi hết sự cố, toolkit gửi tin \textbf{``đã ổn định''}. Tiêu đề email tiếng Việt được mã hoá theo RFC 2047 (\cmd{=?UTF-8?B?...?=}).
+\section{Chức năng 3 — alert: cảnh báo sự cố và phát hiện xâm nhập}
+\subsection{Cảnh báo sự cố}
+\cmd{alert check} chạy mỗi 5 phút: đo CPU, RAM, ổ đĩa và ghi \cmd{metrics.csv}; phát hiện tiến trình ngốn tài nguyên kèm tên nhân viên; phát hiện dịch vụ systemd lỗi; gọi IDS; nếu có sự cố thì gửi \textbf{email} và \textbf{Telegram}. Có cooldown 30 phút; hết sự cố thì gửi tin ``đã ổn định''. Gửi mail được giới hạn thời gian (\cmd{timeout}) để không treo khi máy chủ SMTP không phản hồi.
+\anhdemo{12-alert-check.png}{alert check phát hiện tiến trình ngốn tài nguyên}{Laptop 1: \texttt{sudo sysadmin alert check} khi tiến trình nặng còn chạy.}
+\anhdemo[0.5]{13-telegram-canh-bao.png}{Tin cảnh báo trên điện thoại (Telegram)}{Chụp màn hình điện thoại ngay sau bước trên.}
 
-\begin{figure}[H]\centering\includegraphics[width=0.95\textwidth]{alert-check.png}
-\caption{alert check phát hiện process ngốn tài nguyên}\end{figure}
+\subsection{Phát hiện xâm nhập: đếm lần đăng nhập thất bại}
+Để bắt được dò mật khẩu cả khi máy chủ chỉ cho đăng nhập bằng key, toolkit chuẩn hoá mọi dòng log liên quan thành bộ \textit{(loại, IP, cổng, user)}, rồi đếm \textbf{theo kết nối} (IP + cổng nguồn) để không đếm trùng các dòng của cùng một lần thử:
+\begin{Verbatim}[fontsize=\scriptsize]
+ssh_fail_attempts() {
+  sed -nE \
+   -e 's/.*Failed [a-z/-]+ for (invalid user )?([^ ]*) from ([0-9a-fA-F:.]+) port ([0-9]+).*/F \3 \4 \2/p' \
+   -e 's/.*Invalid user ([^ ]*) from ([0-9a-fA-F:.]+) port ([0-9]+).*/C \2 \3 \1/p' \
+   -e 's/.*(Connection closed by|Disconnected from) (invalid|authenticating) user
+        ([^ ]*) ([0-9a-fA-F:.]+) port ([0-9]+).*\[preauth\].*/C \4 \5 \3/p' |
+  awk '$1 == "F" { print $2, $4; failed[$2 " " $3] = 1; next }
+       { k = $2 " " $3; if (!(k in ip)) { ip[k] = $2; usr[k] = $4 } }
+       END { for (k in ip) if (!(k in failed)) print ip[k], usr[k] }'
+}
+\end{Verbatim}
+Kết nối có dòng \cmd{Failed ...} được đếm theo số dòng Failed; kết nối chỉ có \cmd{Invalid user}/\cmd{[preauth]} được đếm là một lần. Đầu ra là mỗi lần thử một dòng \textit{IP user}, sau đó \cmd{sort | uniq -c} ra số lần theo IP.
+
+\subsection{Danh sách tin cậy theo dải mạng}
+\cmd{IDS\_WHITELIST} nhận cả IP lẻ và dải IPv4 dạng CIDR. So khớp bằng số học bit của Bash:
+\begin{Verbatim}
+ipn=$(( (o1 << 24) | (o2 << 16) | (o3 << 8) | o4 ))
+mask=$(( (0xFFFFFFFF << (32 - bits)) & 0xFFFFFFFF ))
+(( (ipn & mask) == (netn & mask) )) && return 0     # IP thuộc dải mạng
+\end{Verbatim}
+
+\subsection{Cảnh báo và chặn IP}
+Mỗi dấu hiệu có một khoá (ví dụ \cmd{ssh-brute:203.0.113.9}); dấu hiệu chỉ được báo lại sau \cmd{ALERT\_COOLDOWN\_MIN} phút. Các dấu hiệu mới được gom vào \textbf{một tin [TẤN CÔNG]} kèm gợi ý xử lý. Khi \cmd{AUTO\_BAN=yes}, IP dò mật khẩu bị chặn bằng \cmd{ufw} (nếu đang bật) hoặc \cmd{iptables}, và được ghi vào danh sách để \cmd{alert banned}/\cmd{unban} quản lý.
+\anhdemo{23-alert-security.png}{IDS phát hiện dò mật khẩu, dò tên tài khoản, đăng nhập sau khi dò và tự chặn IP}{Laptop 1: \texttt{sudo sysadmin alert security} ngay sau khi Laptop 2 dò mật khẩu (bước 8.4–8.6 trong kịch bản demo).}
+\anhdemo[0.5]{24-telegram-tan-cong.png}{Tin [TẤN CÔNG] trên điện thoại}{Chụp màn hình điện thoại sau bước trên.}
 
 \section{Chức năng 4 — backup: sao lưu tài sản số}
-Dữ liệu được sao lưu mặc định gồm \cmd{/srv/technova} (dự án), \cmd{/home} (nhân viên) và \cmd{/etc} (cấu hình). Một lần sao lưu đi qua các bước sau:
-\begin{enumerate}
-  \item khoá \cmd{flock} để chống chạy trùng;
-  \item nén bằng \cmd{tar -czp} (bỏ qua tệp không đọc được thay vì làm hỏng cả bản sao);
-  \item kiểm tra tệp nén (\cmd{gzip -t});
-  \item tạo checksum SHA-256;
-  \item xoay vòng, giữ 7 bản mới nhất;
-  \item tuỳ chọn \cmd{rsync} bản sao ra máy khác;
-  \item ghi lịch sử, và gửi cảnh báo nếu thất bại.
-\end{enumerate}
+Mặc định sao lưu \cmd{/srv/technova}, \cmd{/home} và \cmd{/etc}. Một lần sao lưu: khoá \cmd{flock} chống chạy trùng $\rightarrow$ nén \cmd{tar -czp} $\rightarrow$ kiểm tra \cmd{gzip -t} $\rightarrow$ checksum SHA-256 $\rightarrow$ xoay vòng giữ 7 bản $\rightarrow$ \textbf{tải bản sao và checksum lên Google Drive}, xoá bản trên Drive cũ hơn 30 ngày $\rightarrow$ ghi lịch sử, cảnh báo nếu lỗi.
 \begin{Verbatim}
 exec 9>"$dest/.backup.lock"
 flock -n 9 || die "Đang có một tiến trình sao lưu khác chạy."
 tar -czpf "$file" --ignore-failed-read "${excl[@]}" -C / "${rel[@]}"
 gzip -t "$file" && (cd "$dest" && sha256sum "$name" > "$name.sha256")
+cloud_upload "$file" "$file.sha256" backups     # rclone copy --retries 3
 \end{Verbatim}
-\begin{figure}[H]\centering\includegraphics[width=0.95\textwidth]{backup.png}
-\caption{Sao lưu và kiểm tra toàn vẹn bản sao}\end{figure}
+Trên Drive, cấu trúc thư mục là \cmd{TechNova-Server/<tên máy>/backups/} và \cmd{.../logs/}.
+\anhdemo{15-backup-run.png}{Sao lưu, kiểm tra toàn vẹn và tải lên Google Drive}{Laptop 1: \texttt{sudo sysadmin backup run}.}
+\anhdemo[0.6]{16-drive-backups.png}{Các bản sao lưu của nhiều đêm trên Google Drive}{Mở Google Drive (điện thoại hoặc trình duyệt) vào \texttt{TechNova-Server/technova-core-srv/backups}.}
 
 \section{Chức năng 5 — scheduler: tự động hoá bảo dưỡng}
-\cmd{scheduler install} ghi một \textbf{khối lịch riêng} vào crontab của root, nằm giữa hai dòng đánh dấu \cmd{>>> sysadmin-toolkit >>>}. Nhờ vậy, cài lại hay gỡ bỏ đều không ảnh hưởng các job khác của hệ thống.
+Toolkit hỗ trợ hai cách lập lịch tương đương. \cmd{scheduler install} ghi một \textbf{khối lịch riêng} vào crontab của root (giữa hai dòng đánh dấu \cmd{>>> sysadmin-toolkit >>>}), cài lại hay gỡ không ảnh hưởng job khác. \cmd{scheduler timers-install} tạo \textbf{4 cặp systemd service + timer} — đây là phần ``tạo service riêng'' của đề tài 4:
 
 \begin{table}[H]\centering\small\caption{Lịch tự động mặc định}
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{3.0cm}L}\toprule
-\textbf{Biểu thức cron} & \textbf{Thời điểm} & \textbf{Tác vụ}\\\midrule
-\cmd{0 2 * * *} & 02:00 hằng ngày & \cmd{backup run}\\
-\cmd{30 3 * * *} & 03:30 hằng ngày & \cmd{scheduler maintenance}: dọn /tmp, log journald cũ, cache gói, core dump, xoay vòng backup\\
-\cmd{*/5 * * * *} & mỗi 5 phút & \cmd{alert check}\\
-\cmd{0 7 * * 1} & 07:00 thứ Hai & \cmd{monitor report}\\\bottomrule
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{3.1cm}L}\toprule
+\textbf{systemd timer} & \textbf{Thời điểm} & \textbf{Tác vụ}\\\midrule
+\cmd{toolkit-monitor} & mỗi 5 phút & \cmd{alert check}: tài nguyên + IDS + cảnh báo\\
+\cmd{toolkit-backup} & 02:00 hằng ngày & \cmd{backup run} rồi \cmd{monitor log-upload}\\
+\cmd{toolkit-maintenance} & 03:30 hằng ngày & dọn \cmd{/tmp}, journald cũ, cache gói, core dump\\
+\cmd{toolkit-report} & 07:00 thứ Hai & \cmd{monitor report}\\\bottomrule
 \end{tabularx}\end{table}
-\begin{figure}[H]\centering\includegraphics[width=0.95\textwidth]{scheduler.png}
-\caption{Cài lịch tự động và giải thích biểu thức cron bằng tiếng Việt}\end{figure}
 
-Toolkit cũng có thể dùng systemd timer thay cho cron (\cmd{scheduler timers-install}), và hỗ trợ hẹn giờ chạy một lần bằng \cmd{at}.
+\begin{Verbatim}
+# /etc/systemd/system/toolkit-backup.service
+[Service]
+Type=oneshot
+ExecStart=-/opt/sysadmin-toolkit/sysadmin.sh --no-color --yes backup run
+ExecStart=/opt/sysadmin-toolkit/sysadmin.sh --no-color --yes monitor log-upload
+Nice=15
+IOSchedulingClass=idle
 
-\section{Đóng gói và triển khai}
-\begin{itemize}
-  \item \textbf{Cài trên máy thật:} \cmd{sudo ./install.sh --deps} chép toolkit vào \cmd{/opt/sysadmin-toolkit} (chủ sở hữu root), tạo lệnh \cmd{sysadmin}, cài các gói phụ thuộc và bật tự hoàn thành lệnh bằng phím Tab.
-  \item \textbf{Docker:} \cmd{docker compose up -d} dựng sẵn máy chủ \cmd{technova-core-srv} (Ubuntu 24.04, cron, at, SSH server). Tech Lead SSH vào cổng 2222 như với máy thật; bản sao lưu, cấu hình, báo cáo và log được giữ trong volume.
-  \item \textbf{Gói nén:} \cmd{./package.sh} tạo tệp \cmd{.tar.gz} kèm checksum để mang sang máy Linux khác.
-\end{itemize}
+# /etc/systemd/system/toolkit-backup.timer
+[Timer]
+OnCalendar=*-*-* 02:00:00
+RandomizedDelaySec=10min
+Persistent=true
+\end{Verbatim}
+Dấu \cmd{-} trước lệnh sao lưu nghĩa là: nếu sao lưu lỗi (đã tự gửi cảnh báo) thì vẫn tiếp tục đóng gói log.
+\anhdemo{02-list-timers.png}{Bốn systemd timer của toolkit đã chạy nhiều lần}{Trên máy chủ: \texttt{systemctl list-timers 'toolkit-*'}. Cột LAST phải có giá trị.}
+
+\section{Triển khai một lệnh: \texttt{install.sh --server}}
+\cmd{install.sh --server} cài gói phụ thuộc (gồm \cmd{openssh-server}, \cmd{iptables}, \cmd{rclone}), chép toolkit vào \cmd{/opt/sysadmin-toolkit} (chủ sở hữu root, vì timer chạy bằng root), rồi hỏi cấu hình:
+\begin{table}[H]\centering\small
+\caption{Các câu hỏi của \texttt{install.sh --server}}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{5.2cm}L}\toprule
+\textbf{Câu hỏi} & \textbf{Tác dụng}\\\midrule
+Máy chuyên làm máy chủ? & Máy cá nhân thì không sao lưu cả \cmd{/home}\\
+Thư mục cần sao lưu & \cmd{BACKUP\_SOURCES}\\
+IP / dải mạng tin cậy & Tự điền IP máy đang SSH vào (lấy từ \cmd{who -m}) và dải Tailscale nếu có\\
+Tự chặn IP dò mật khẩu? & \cmd{AUTO\_BAN}\\
+Siết SSH? & \cmd{PermitRootLogin no}, \cmd{MaxAuthTries 4} trong \cmd{sshd\_config.d/}, kiểm tra bằng \cmd{sshd -t} trước khi áp dụng\\
+Laptop gập máy vẫn chạy? & \cmd{HandleLidSwitch=ignore} (chỉ hỏi khi máy có pin)\\
+Lập lịch bằng timer hay cron & Cài 4 systemd timer hoặc khối cron\\\bottomrule
+\end{tabularx}\end{table}
+Cuối cùng toolkit chụp baseline cho IDS \textit{sau} khi đã sửa cấu hình SSH, để không tự báo nhầm.
+\anhdemo{01-install-server.png}{Triển khai toolkit lên máy Ubuntu thật bằng một lệnh}{Laptop 1 SSH vào máy chủ, chạy \texttt{sudo ./install.sh --server}. Chụp phần câu hỏi và dòng ``Máy chủ đã sẵn sàng''.}
 
 % ================================================================ CHƯƠNG 5 ===
+\chapter{Triển khai thực tế và workflow demo}
+
+\section{Môi trường triển khai}
+\begin{table}[H]\centering\small
+\caption{Thiết bị triển khai}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{4.6cm}L}\toprule
+\textbf{Thiết bị} & \textbf{Vai trò} & \textbf{Cấu hình}\\\midrule
+Máy Ubuntu thật & \cmd{technova-core-srv} & \dien{Ubuntu 24.04, CPU, RAM, ổ đĩa}\\
+Laptop 1 (Kali) & Anh Hưng — quản trị từ xa & \dien{IP, whitelist}\\
+Laptop 2 & Nhân viên, kẻ tấn công & \dien{IP, không whitelist}\\
+Điện thoại & Telegram, Google Drive & —\\
+Mạng & & \dien{Wi-Fi LAN / Tailscale}\\\bottomrule
+\end{tabularx}\end{table}
+
+\section{Quy trình triển khai}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[font=\sffamily\small, node distance=4mm,
+  st/.style={draw=navy, fill=mint, rounded corners=3pt, minimum height=12mm, align=center, text width=2.55cm},
+  arr/.style={-{Stealth}, thick, teal}]
+  \node[st] (a) {\textbf{D-7}\\\scriptsize git clone\\install.sh --server};
+  \node[st, right=of a] (b) {\textbf{D-7}\\\scriptsize Telegram, Drive,\\users create};
+  \node[st, right=of b, fill=amber!25] (c) {\textbf{D-7 → D-1}\\\scriptsize máy tự chạy,\\thu số liệu};
+  \node[st, right=of c] (d) {\textbf{D-1}\\\scriptsize kiểm tra,\\chạy test 75/75};
+  \node[st, right=of d, fill=navy!10] (e) {\textbf{Ngày demo}\\\scriptsize 15 phút\\trên máy thật};
+  \draw[arr] (a) -- (b); \draw[arr] (b) -- (c); \draw[arr] (c) -- (d); \draw[arr] (d) -- (e);
+\end{tikzpicture}
+\caption{Các mốc triển khai}
+\end{figure}
+\begin{enumerate}
+  \item Tải mã nguồn về máy chủ: \cmd{git clone \RepoURL}.
+  \item Từ Laptop 1 SSH vào máy chủ, chạy \cmd{sudo ./install.sh --server} để toolkit tự whitelist IP của Laptop 1.
+  \item Nối Telegram (\cmd{alert setup-telegram}, \cmd{alert test}) và Google Drive (\cmd{rclone authorize "drive"} trên Laptop 1, \cmd{backup cloud-setup} trên máy chủ).
+  \item Tạo nhân viên và thư mục dự án (\cmd{users create}, \cmd{users setup-dirs}).
+  \item Để máy chạy liên tục \dien{số ngày} ngày; các thành viên thỉnh thoảng SSH vào làm việc.
+\end{enumerate}
+\anhdemo[0.5]{03-telegram-test.png}{Tin thử từ toolkit tới Telegram}{Sau \texttt{sudo sysadmin alert test}, chụp màn hình điện thoại.}
+\anhdemo{04-cloud-setup.png}{Kết nối Google Drive}{Trên máy chủ: \texttt{sudo sysadmin backup cloud-status} (thấy ``remote gdrive sẵn sàng'').}
+
+\section{Workflow demo}
+Buổi demo khoảng 15 phút, theo câu chuyện \textit{``Một ngày làm việc từ xa của anh Hưng''}. Kịch bản chi tiết từng lệnh nằm trong tệp \cmd{docs/KICH-BAN-DEMO.md}.
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[font=\sffamily\scriptsize, node distance=3mm,
+  st/.style={draw=navy, fill=mint, rounded corners=3pt, minimum height=11mm, align=center, text width=2.15cm},
+  arr/.style={-{Stealth}, thick, teal}]
+  \node[st] (s1) {\textbf{1. Mở đầu}\\SSH vào máy thật};
+  \node[st, right=of s1] (s2) {\textbf{2. users}\\phân quyền};
+  \node[st, right=of s2] (s3) {\textbf{3. monitor}\\process treo};
+  \node[st, right=of s3] (s4) {\textbf{4. alert}\\điện thoại rung};
+  \node[st, below=8mm of s4] (s5) {\textbf{5. backup}\\Google Drive};
+  \node[st, left=of s5] (s6) {\textbf{6. systemd}\\timer, journald};
+  \node[st, left=of s6, fill=brick!15] (s7) {\textbf{7. Nghỉ việc}\\+ bị tấn công};
+  \node[st, left=of s7, fill=amber!25] (s8) {\textbf{8. Kết quả}\\vận hành N ngày};
+  \draw[arr] (s1) -- (s2); \draw[arr] (s2) -- (s3); \draw[arr] (s3) -- (s4); \draw[arr] (s4) -- (s5);
+  \draw[arr] (s5) -- (s6); \draw[arr] (s6) -- (s7); \draw[arr] (s7) -- (s8);
+\end{tikzpicture}
+\caption{Thứ tự các phần trong buổi demo}
+\end{figure}
+
+\subsection{Bước 1 — Mở đầu: đây là máy chủ thật}
+Laptop 1 SSH vào máy chủ (đề tài 6), xem \cmd{hostnamectl; uptime} để cho thấy đây là máy Ubuntu thật đã chạy nhiều ngày.
+\anhdemo{05-ssh-tu-xa.png}{Quản trị máy chủ từ máy khác qua SSH}{Laptop 1: \texttt{ssh hungnv@<IP máy chủ>} rồi \texttt{hostnamectl; uptime}.}
+
+\subsection{Bước 2 — users: nhân viên làm việc và phân quyền}
+Laptop 2 đăng nhập bằng \cmd{cuonglv} (phòng data), thử vào thư mục phòng dev và bị từ chối; tạo tệp trong \cmd{data/} và tệp tự thuộc nhóm \cmd{data} nhờ SGID (Hình~\ref{fig:08-phan-quyen.png}). Laptop 1 chạy \cmd{users audit} (Hình~\ref{fig:09-users-audit.png}).
+
+\subsection{Bước 3 — monitor: có người treo process}
+Laptop 2 chạy một tiến trình ngốn CPU đặt tên \cmd{train\_model.py}. Laptop 1 dùng \cmd{monitor who}, \cmd{usage}, \cmd{hogs} để tìm ra người và tiến trình (Hình~\ref{fig:10-monitor-who.png}, \ref{fig:11-monitor-hogs.png}), rồi \cmd{monitor renice} hạ ưu tiên về 19 (đề tài 1).
+
+\subsection{Bước 4 — alert: cảnh báo tới điện thoại}
+\cmd{alert check} phát hiện tiến trình ngốn tài nguyên, điện thoại nhận tin (Hình~\ref{fig:12-alert-check.png}, \ref{fig:13-telegram-canh-bao.png}). Sau khi \cmd{monitor kill}, lần kiểm tra kế tiếp gửi tin ``đã ổn định''.
+\anhdemo[0.5]{14-telegram-on-dinh.png}{Tin ``ĐÃ ỔN ĐỊNH'' sau khi xử lý sự cố}{Sau \texttt{monitor kill} và \texttt{alert check}, chụp màn hình điện thoại.}
+
+\subsection{Bước 5 — backup: sao lưu lên Google Drive}
+\cmd{backup run} tạo bản sao và tải lên Drive; mở Drive trên điện thoại thấy bản vừa tạo cùng các bản của những đêm trước (Hình~\ref{fig:15-backup-run.png}, \ref{fig:16-drive-backups.png}). Khôi phục thử và kiểm tra nội dung.
+\anhdemo{17-backup-restore.png}{Kiểm tra toàn vẹn và khôi phục đúng nội dung}{Laptop 1: \texttt{sudo sysadmin backup verify <file>} rồi \texttt{sudo sysadmin --yes backup restore <file> /tmp/restore \&\& cat /tmp/restore/srv/technova/data/model.txt}.}
+
+\subsection{Bước 6 — scheduler và systemd: máy chủ tự vận hành}
+\anhdemo{18-systemctl-cat.png}{Service do toolkit tạo}{Laptop 1: \texttt{systemctl cat toolkit-backup.service toolkit-backup.timer}.}
+\anhdemo{19-journalctl-backup.png}{Nhật ký các đêm sao lưu trong journald}{Laptop 1: \texttt{journalctl -u toolkit-backup --since "3 days ago" | tail -20}.}
+
+\subsection{Bước 7 — nhân viên nghỉ việc, rồi máy chủ bị tấn công}
+\textbf{Nghỉ việc:} Laptop 2 đang SSH bằng \cmd{binhtt}; Laptop 1 chạy \cmd{users offboard binhtt}, phiên trên Laptop 2 bị ngắt ngay và không đăng nhập lại được.
+\anhdemo{20-offboard.png}{Quy trình nghỉ việc 5 bước}{Laptop 1: \texttt{sudo sysadmin users offboard binhtt}.}
+\anhdemo{21-laptop2-bi-ngat.png}{Phiên của nhân viên nghỉ việc bị ngắt và không vào lại được}{Màn hình Laptop 2: phiên \texttt{binhtt} bị đóng, lần \texttt{ssh binhtt@<IP>} sau đó thất bại.}
+
+\textbf{Bị tấn công:} Laptop 2 thử đăng nhập bằng các tên tài khoản phổ biến với mật khẩu đoán bừa, rồi đăng nhập đúng bằng một tài khoản nhân viên. Laptop 1 chạy \cmd{alert security}: IDS báo dò mật khẩu, dò tên tài khoản, \textbf{nghi bị chiếm tài khoản}, tự chặn IP của Laptop 2 và gửi tin [TẤN CÔNG] (Hình~\ref{fig:23-alert-security.png}, \ref{fig:24-telegram-tan-cong.png}).
+\anhdemo{22-ssh-do-mat-khau.png}{Laptop 2 thử đăng nhập bằng nhiều tài khoản với mật khẩu sai}{Màn hình Laptop 2 khi chạy vòng lặp \texttt{ssh} ở bước 8.4 trong kịch bản demo (các lần ``Permission denied'').}
+\anhdemo{25-ssh-bi-chan.png}{Kết nối từ Laptop 2 bị tường lửa chặn}{Laptop 2: \texttt{ssh cuonglv@<IP>} bị treo rồi hết thời gian chờ.}
+\anhdemo{26-alert-banned.png}{Danh sách IP bị chặn và luật iptables tương ứng}{Laptop 1: \texttt{sudo sysadmin alert banned} và \texttt{sudo iptables -S INPUT | grep toolkit}.}
+\anhdemo{27-logcheck.png}{Báo cáo nhật ký 1 giờ qua}{Laptop 1: \texttt{sudo sysadmin monitor logcheck 1}. Chụp mục ``Đăng nhập SSH thất bại'' và ``thành công''.}
+
+\subsection{Bước 8 — kết quả vận hành thực tế}
+Trình bày số liệu tích luỹ sau những ngày máy chủ tự chạy (mục~\ref{sec:vanhanh}).
+\anhdemo{28-alert-history.png}{Lịch sử cảnh báo trong thời gian vận hành}{Laptop 1: \texttt{sudo sysadmin alert history}.}
+\anhdemo{29-report-html.png}{Báo cáo HTML với biểu đồ CPU/RAM/Disk nhiều ngày}{\texttt{sudo sysadmin monitor report}, mở tệp HTML trong \texttt{reports/} bằng trình duyệt.}
+\anhdemo[0.6]{30-drive-logs.png}{Các gói log hằng đêm trên Google Drive}{Google Drive: \texttt{TechNova-Server/technova-core-srv/logs}.}
+
+% ================================================================ CHƯƠNG 6 ===
 \chapter{Kiểm thử và đánh giá}
 
 \section{Môi trường kiểm thử}
 \begin{itemize}
-  \item \textbf{Ubuntu 24.04} chạy trong container Docker, hostname \cmd{technova-core-srv}, quyền root, có \cmd{CAP\_SYS\_NICE}.
-  \item \textbf{Kali Linux Rolling} (kernel 7.1, bash 5.3), tài khoản thường: chạy các chức năng chỉ đọc và chế độ dry-run.
-  \item Kiểm tra tĩnh bằng \textbf{shellcheck}.
+  \item \textbf{Kiểm thử tự động}: container Ubuntu 24.04 (hostname \cmd{technova-core-srv}, root, \cmd{CAP\_SYS\_NICE}, \cmd{CAP\_NET\_ADMIN}).
+  \item \textbf{Kiểm thử đường triển khai thật}: container Ubuntu 24.04 \textbf{có systemd làm PID 1} (journald, \cmd{ssh.service}). \cmd{install.sh --server} chạy trọn vẹn; 4 timer tự kích hoạt đúng lịch; IDS đọc journald, bắt dò mật khẩu cả kiểu có mật khẩu lẫn kiểu chỉ-key và tự chặn IP bằng iptables.
+  \item \textbf{Kiểm thử kênh cảnh báo}: máy chủ Telegram API và SMTP giả lập nhận đúng tin [TẤN CÔNG] liệt kê đủ các dấu hiệu.
+  \item \textbf{Máy chủ thật}: \dien{máy, thời gian vận hành}.
+  \item Kiểm tra tĩnh bằng \textbf{shellcheck}: không còn cảnh báo.
 \end{itemize}
 
 \section{Kịch bản kiểm thử tự động}
-Script \cmd{tests/demo-test.sh} mô phỏng trọn ``một ngày của anh Hưng'' theo thứ tự: nhân viên mới vào làm → một nhân viên treo process → cảnh báo → sao lưu → tự động hoá → nhân viên nghỉ việc → dọn dẹp. Mỗi bước được kiểm chứng bằng điều kiện cụ thể trên hệ thống, ví dụ: thành viên nhóm, quyền thư mục, tiến trình còn sống hay không, nội dung crontab, nội dung tệp khôi phục.
-
+Script \cmd{tests/demo-test.sh} mô phỏng trọn ``một ngày của anh Hưng'' và kiểm chứng từng bước bằng điều kiện cụ thể trên hệ thống (thành viên nhóm, quyền thư mục, tiến trình còn sống, nội dung crontab, luật iptables, tệp trên ``Drive'' giả lập…). Phần Google Drive dùng remote rclone kiểu local nên không gửi dữ liệu ra Internet.
 \begin{table}[H]\centering\small
 \caption{Kết quả kiểm thử tự động}
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{4.3cm}Lcc}\toprule
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.0cm}Lcc}\toprule
 \textbf{Nhóm} & \textbf{Nội dung kiểm chứng} & \textbf{Số test} & \textbf{Kết quả}\\\midrule
-0. Nền tảng & Phiên bản, help sinh tự động, từ chối tham số sai, dry-run không thay đổi hệ thống & 5 & 5/5\\
-1. users & Tạo 7 nhân viên, phòng ban, sudo, ép đổi mật khẩu, tệp mật khẩu 600, idempotent, quyền 2770/1777, SGID, sticky, lock/unlock, audit & 18 & 18/18\\
-2. monitor & Mô phỏng process treo, usage, hogs, top, who/overview/troubleshoot, renice & 6 & 6/6\\
-3. alert & Phát hiện sự cố, ghi log, cooldown, kill, tin ``đã ổn định'', metrics.csv, đổi ngưỡng & 7 & 7/7\\
-4. backup & Tạo bản sao, SHA-256 khớp, chứa dữ liệu dự án, verify, khôi phục đúng nội dung, xoay vòng & 6 & 6/6\\
-5. scheduler & Khối cron đủ 4 job, job tuỳ chỉnh (thoát \%), explain, từ chối cron sai, bảo dưỡng xoá tệp cũ, gỡ lịch & 7 & 7/7\\
-1'. Nghỉ việc & kick, offboard (khoá + lưu trữ home), từ chối offboard root & 4 & 4/4\\
+Nền tảng & Phiên bản, help tự sinh, từ chối tham số sai, dry-run & 5 & 5/5\\
+users & 7 nhân viên, phòng ban, sudo, ép đổi mật khẩu, quyền 2770/1777, SGID, sticky, lock/unlock, audit & 18 & 18/18\\
+monitor & Process treo, usage, hogs, top, who/overview/troubleshoot, renice & 6 & 6/6\\
+alert & Phát hiện sự cố, log, cooldown, kill, ``đã ổn định'', metrics, đổi ngưỡng & 7 & 7/7\\
+IDS & Baseline, không báo nhầm, dò mật khẩu, \textbf{dò khi chỉ dùng key}, dò tên tài khoản, chiếm tài khoản, tệp bị sửa, UID 0, process từ /tmp, gửi cảnh báo, chống spam, \textbf{whitelist CIDR}, logcheck, ban/banned/unban & 16 & 16/16\\
+backup & Bản sao, SHA-256, dữ liệu dự án, verify, khôi phục, xoay vòng, Drive, backup + log lên Drive, cloud-list & 10 & 10/10\\
+scheduler & Khối cron đủ 5 job, job tuỳ chỉnh, explain, từ chối cron sai, bảo dưỡng, gỡ lịch & 7 & 7/7\\
+Nghỉ việc & kick, offboard, lưu trữ home, từ chối offboard root & 4 & 4/4\\
 Dọn dẹp & Xoá nhân viên, thư mục, nhóm demo & 2 & 2/2\\\midrule
-\textbf{Tổng} & & \textbf{55} & \textbf{55/55}\\\bottomrule
+\textbf{Tổng} & & \textbf{75} & \textbf{75/75}\\\bottomrule
 \end{tabularx}
 \end{table}
+\anhdemo{31-test-75-pass.png}{Kết quả chạy bộ kiểm thử tự động}{Laptop 1, thư mục mã nguồn: \texttt{docker run --rm --cap-add SYS\_NICE --cap-add NET\_ADMIN -v "\$PWD/tests:/tests:ro" technova/sysadmin-toolkit:1.0 bash /tests/demo-test.sh --yes}. Chụp dòng ``KẾT QUẢ: 75/75 PASS''.}
 
-Chạy lại bộ kiểm thử bằng lệnh:
-\begin{Verbatim}
-docker run --rm --cap-add SYS_NICE -v "$PWD/tests:/tests:ro" \
-       technova/sysadmin-toolkit:1.0 bash /tests/demo-test.sh --yes
-\end{Verbatim}
+\section{Kết quả vận hành thực tế}\label{sec:vanhanh}
+\begin{table}[H]\centering\small
+\caption{Số liệu sau thời gian máy chủ tự vận hành}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{7.2cm}L}\toprule
+\textbf{Chỉ số} & \textbf{Giá trị}\\\midrule
+Thời gian vận hành liên tục & \dien{số ngày, từ ngày … đến ngày …}\\
+Số lần \cmd{alert check} đã chạy (timer 5 phút) & \dien{journalctl -u toolkit-monitor | grep -c ...}\\
+Số bản sao lưu đã tải lên Google Drive & \dien{backup cloud-list}\\
+Số gói log đã tải lên Google Drive & \dien{backup cloud-list}\\
+Số cảnh báo đã gửi (Telegram/email) & \dien{alert history}\\
+Số lần đăng nhập SSH thất bại ghi nhận & \dien{monitor logcheck 168}\\
+Số IP bị chặn & \dien{alert banned}\\
+Sự cố thật phát hiện được (nếu có) & \dien{mô tả}\\\bottomrule
+\end{tabularx}
+\end{table}
 
 \section{Đánh giá lợi ích của tự động hoá}
 \begin{table}[H]\centering\small
@@ -528,66 +778,99 @@ docker run --rm --cap-add SYS_NICE -v "$PWD/tests:/tests:ro" \
 Tạo 7 nhân viên + phòng ban + thư mục & $\approx$ 50 lệnh, 20–30 phút, dễ sai quyền & 2 lệnh, $<$ 10 giây, có kiểm chứng\\
 Tìm ai đang treo process & \cmd{ps}/\cmd{top}, tự đối chiếu user & \cmd{monitor hogs}: một lệnh\\
 Phát hiện sự cố lúc 2 giờ sáng & Chỉ biết khi nhân viên phản ánh & Cảnh báo trong $\le$ 5 phút\\
-Sao lưu hằng ngày & Dễ quên, không kiểm tra bản sao & Tự động, có checksum và xoay vòng\\
+Phát hiện dò mật khẩu SSH & Đọc \cmd{auth.log} bằng tay, thường không ai đọc & Tự phát hiện, tự chặn, báo về điện thoại\\
+Sao lưu hằng ngày ra ngoài máy & Dễ quên, không kiểm tra, để chung máy & Tự động, checksum, xoay vòng, lên Drive\\
 Nhân viên nghỉ việc & Dễ sót bước (sudo, crontab, phiên còn mở) & \cmd{users offboard}: 5 bước một lần\\\bottomrule
 \end{tabularx}
 \end{table}
 
 \section{Hạn chế}
 \begin{itemize}
-  \item Chỉ quản lý một máy chủ; chưa có cơ chế quản lý tập trung nhiều máy.
-  \item Bản Docker không có systemd, nên chức năng systemd timer và log journald bị hạn chế (vẫn dùng cron được).
-  \item Gửi email phụ thuộc vào cấu hình SMTP bên ngoài (Gmail App Password); nhóm chưa kiểm thử gửi thư thật.
-  \item Giao diện whiptail cần nhấn Tab để đóng hộp kết quả; dùng \cmd{dialog} sẽ thuận tiện hơn.
+  \item Chỉ quản lý một máy chủ; chưa có quản lý tập trung nhiều máy.
+  \item IDS dựa trên luật và ngưỡng cố định: không phát hiện được kiểu tấn công chưa có luật, và có thể báo nhầm khi ngưỡng không phù hợp với từng máy.
+  \item Whitelist theo dải mạng mới hỗ trợ IPv4.
+  \item Gửi email phụ thuộc cấu hình SMTP bên ngoài; Google Drive phụ thuộc token OAuth (cần cấp lại khi hết hạn).
 \end{itemize}
 
-% ================================================================ CHƯƠNG 6 ===
+% ================================================================ CHƯƠNG 7 ===
 \chapter{Kết luận và hướng phát triển}
 \section{Kết luận}
-Đồ án đã xây dựng thành công \textbf{LinuxAdmin Toolkit}. Bộ công cụ chứng minh rằng Bash scripting đủ sức tự động hoá toàn bộ công việc quản trị hằng ngày của một máy chủ doanh nghiệp, cụ thể:
-\begin{itemize}
-  \item quản lý vòng đời nhân viên, từ tiếp nhận đến nghỉ việc;
-  \item phân quyền theo phòng ban;
-  \item giám sát và xử lý tiến trình gây sự cố;
-  \item cảnh báo tức thời;
-  \item sao lưu an toàn;
-  \item bảo dưỡng định kỳ.
-\end{itemize}
-Thiết kế ``giao diện là lớp vỏ của CLI'' giúp toolkit vừa thân thiện qua SSH, vừa dễ dùng trong script và cron. Bộ kiểm thử tự động 55 bước xác nhận các chức năng hoạt động đúng.
+Đồ án đã xây dựng và \textbf{triển khai thực tế} LinuxAdmin Toolkit, chứng minh Bash scripting đủ sức tự động hoá công việc quản trị hằng ngày của một máy chủ doanh nghiệp: quản lý vòng đời nhân viên, phân quyền theo phòng ban, giám sát và xử lý tiến trình gây sự cố, kiểm tra nhật ký, phát hiện xâm nhập, cảnh báo tức thời, sao lưu ra đám mây và bảo dưỡng định kỳ bằng systemd. Thiết kế ``giao diện là lớp vỏ của CLI'' giúp toolkit vừa thân thiện qua SSH vừa dùng được trong script, cron và systemd. Bộ kiểm thử tự động 75 bước xác nhận các chức năng hoạt động đúng.
 
 \section{Hướng phát triển}
 \begin{itemize}
+  \item \textbf{Phát hiện bất thường bằng thống kê}: học thói quen đăng nhập của từng nhân viên (giờ, IP) và báo khi lệch; so mức CPU/RAM với trung bình theo từng giờ trong ngày (độ lệch chuẩn) từ \cmd{metrics.csv}.
   \item Quản lý nhiều máy chủ qua SSH hoặc chuyển sang Ansible.
-  \item Dashboard web đọc dữ liệu \cmd{metrics.csv} và báo cáo.
-  \item Tích hợp xác thực hai lớp và theo dõi lệnh sudo của nhân viên (\cmd{auditd}).
-  \item Đẩy bản sao lưu lên dịch vụ lưu trữ đám mây và mã hoá bản sao bằng GPG.
+  \item Mã hoá bản sao lưu bằng GPG trước khi tải lên đám mây.
+  \item Dashboard web đọc \cmd{metrics.csv} và lịch sử cảnh báo; theo dõi lệnh sudo bằng \cmd{auditd}.
 \end{itemize}
 
 % ================================================================ PHỤ LỤC ===
 \appendix
 \renewcommand{\chapname}{PHỤ LỤC}
-\chapter{Hướng dẫn cài đặt nhanh}
+\chapter{Hướng dẫn sử dụng}
+\section{Cài đặt trên máy Ubuntu thật}
 \begin{Verbatim}
-# Cách A — Docker (máy chủ giả lập technova-core-srv)
+sudo apt update && sudo apt install -y git
 git clone https://github.com/duylmaoxd/technova-sysadmin-toolkit.git
-cd technova-sysadmin-toolkit && docker compose up -d --build
-ssh -p 2222 hung@localhost        # rồi: sudo sysadmin --tui
-
-# Cách B — cài trực tiếp trên Ubuntu Server
-sudo ./install.sh --deps
-sudo sysadmin scheduler install
+cd technova-sysadmin-toolkit
+sudo ./install.sh --server            # cài + hỏi cấu hình + bật timer + baseline IDS
+sudo sysadmin alert setup-telegram    # nhận cảnh báo trên điện thoại
+sudo sysadmin alert test
+sudo sysadmin backup cloud-setup      # trước đó: rclone authorize "drive" trên máy có trình duyệt
+sudo sysadmin users create && sudo sysadmin users setup-dirs
 \end{Verbatim}
-Mã nguồn: \url{\RepoURL}. Hướng dẫn chi tiết: tệp \cmd{HUONG-DAN-SU-DUNG.md}.
+Từ máy khác: \cmd{ssh hungnv@<IP máy chủ>} rồi \cmd{sudo sysadmin --tui} hoặc gõ lệnh trực tiếp. Gỡ cài đặt: \cmd{sudo ./install.sh --uninstall} (bản sao lưu được giữ lại).
+
+\section{Các lệnh thường dùng}
+\begin{table}[H]\centering\small
+\caption{Tra cứu nhanh theo tình huống}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{6.2cm}L}\toprule
+\textbf{Tình huống} & \textbf{Lệnh}\\\midrule
+Có nhân viên mới (sửa \cmd{users.csv} trước) & \cmd{sudo sysadmin users create}\\
+Nhân viên nghỉ việc & \cmd{sudo sysadmin users offboard <user>}\\
+Ai đang đăng nhập, ai ngốn CPU/RAM & \cmd{sysadmin monitor who} · \cmd{usage} · \cmd{hogs}\\
+Hạ ưu tiên / dừng tiến trình & \cmd{sudo sysadmin monitor renice <PID>} · \cmd{kill <PID>}\\
+Log 24 giờ qua có gì bất thường & \cmd{sudo sysadmin monitor logcheck}\\
+Máy có bị tấn công không & \cmd{sudo sysadmin alert security}\\
+Chặn / bỏ chặn IP & \cmd{sudo sysadmin alert ban <IP>} · \cmd{unban <IP>} · \cmd{banned}\\
+Đã sửa cấu hình hợp lệ, IDS báo tệp bị đổi & \cmd{sudo sysadmin alert baseline}\\
+Sao lưu ngay / kiểm tra / khôi phục & \cmd{sudo sysadmin backup run} · \cmd{verify <file>} · \cmd{restore <file> <thư mục>}\\
+Xem bản sao trên Google Drive & \cmd{sudo sysadmin backup cloud-list}\\
+Xem lịch tự động & \cmd{systemctl list-timers 'toolkit-*'}\\
+Hiểu một biểu thức cron & \cmd{sysadmin scheduler explain "30 3 * * *"}\\\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Tham số cấu hình chính}
+Tệp \cmd{/opt/sysadmin-toolkit/config/toolkit.conf}:
+\begin{table}[H]\centering\small
+\caption{Tham số cấu hình chính}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{3.4cm}L}\toprule
+\textbf{Biến} & \textbf{Mặc định} & \textbf{Ý nghĩa}\\\midrule
+\cmd{CPU/MEM/DISK\_THRESHOLD} & 80 / 85 / 90 & Ngưỡng cảnh báo (\%)\\
+\cmd{HOG\_CPU} / \cmd{HOG\_MEM} & 90 / 30 & Ngưỡng coi là process treo (\%)\\
+\cmd{IDS\_WINDOW\_MIN} & 10 & Cửa sổ đọc log của IDS (phút)\\
+\cmd{IDS\_SSH\_FAIL\_PER\_IP} & 5 & Số lần thử từ một IP coi là dò mật khẩu\\
+\cmd{IDS\_SPRAY\_USERS} & 5 & Số username lạ coi là dò tên tài khoản\\
+\cmd{AUTO\_BAN} & no & \cmd{yes}: tự chặn IP dò mật khẩu\\
+\cmd{IDS\_WHITELIST} & \cmd{127.0.0.1 ::1} & IP / dải mạng không bao giờ bị chặn\\
+\cmd{ALERT\_COOLDOWN\_MIN} & 30 & Mỗi dấu hiệu chỉ báo lại sau ngần này phút\\
+\cmd{BACKUP\_SOURCES} & \cmd{/etc /home /srv/technova} & Thư mục sao lưu\\
+\cmd{BACKUP\_KEEP} & 7 & Số bản giữ tại máy\\
+\cmd{GDRIVE\_REMOTE} / \cmd{GDRIVE\_KEEP\_DAYS} & — / 30 & Thư mục Drive / số ngày giữ trên Drive\\\bottomrule
+\end{tabularx}
+\end{table}
 
 \chapter{Danh sách lệnh}
 \begin{longtable}{>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{12.2cm}}
 \toprule\textbf{Chức năng} & \textbf{Action}\\\midrule\endhead
 users & list, create, delete, add, remove, lock, unlock, passwd, sudo, policy, set-policy, audit, perm, shared-dir, setup-dirs, kick, offboard, demo, demo-clean\\
-monitor & who, usage, top, hogs, renice, kill, overview, memory, disk, logs, auth, troubleshoot, report, watch, history\\
-alert & check, status, test, setup-mail, setup-telegram, set-threshold, stress, history\\
-backup & run, list, verify, restore, rotate, history\\
+monitor & who, usage, top, hogs, renice, kill, overview, memory, disk, logs, logcheck, log-upload, auth, troubleshoot, report, watch, history\\
+alert & check, security, baseline, ban, unban, banned, status, test, setup-mail, setup-telegram, set-threshold, stress, history\\
+backup & run, list, verify, restore, rotate, history, cloud-setup, cloud-status, upload, cloud-list\\
 scheduler & list, install, maintenance, remove, add, explain, at, at-list, at-remove, log, timers-install, timers-remove\\\bottomrule
 \end{longtable}
-Tuỳ chọn chung: \cmd{--tui}, \cmd{--cli}, \cmd{--dry-run}, \cmd{--yes}, \cmd{--ascii}, \cmd{--no-color}, \cmd{--config}. Xem chi tiết: \cmd{sysadmin help <chức năng>}.
+Tuỳ chọn chung: \cmd{--tui}, \cmd{--cli}, \cmd{--dry-run}, \cmd{--yes}, \cmd{--ascii}, \cmd{--no-color}, \cmd{--config}. Xem chi tiết: \cmd{sysadmin help <chức năng>}. Mã nguồn: \url{\RepoURL}.
 
 \end{document}

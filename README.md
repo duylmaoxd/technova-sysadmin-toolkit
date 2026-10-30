@@ -24,7 +24,7 @@ Toolkit gom các công việc hằng ngày của anh vào **5 chức năng chín
 ## Tài liệu đồ án
 | Tài liệu | Đường dẫn |
 |---|---|
-| Báo cáo (LaTeX → PDF, 29 trang) | [docs/bao-cao/bao-cao.pdf](docs/bao-cao/bao-cao.pdf) · mã nguồn `bao-cao.tex` · biên dịch lại bằng `docs/bao-cao/build.sh` |
+| Báo cáo (LaTeX → PDF, 46 trang: lý thuyết, thiết kế, triển khai thực tế, workflow demo, hướng dẫn sử dụng) | [docs/bao-cao/bao-cao.pdf](docs/bao-cao/bao-cao.pdf) · mã nguồn `bao-cao.tex` · biên dịch lại bằng `docs/bao-cao/build.sh` · **phần cần bổ sung (ảnh demo, số liệu): [docs/bao-cao/CAN-BO-SUNG.md](docs/bao-cao/CAN-BO-SUNG.md)** |
 | Slide thuyết trình (16 slide, có ghi chú thuyết trình) | [docs/thuyet-trinh/LinuxAdmin-Toolkit-TechNova.pptx](docs/thuyet-trinh/LinuxAdmin-Toolkit-TechNova.pptx) |
 | Kịch bản demo trên máy thật & danh sách 75 test | [docs/KICH-BAN-DEMO.md](docs/KICH-BAN-DEMO.md) · script `tests/demo-test.sh` |
 | Hướng dẫn sử dụng | [HUONG-DAN-SU-DUNG.md](HUONG-DAN-SU-DUNG.md) |
