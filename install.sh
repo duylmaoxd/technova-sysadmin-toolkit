@@ -72,7 +72,7 @@ do_install() {
 
 # Gói phụ thuộc cho 5 chức năng (tên gói tự đổi theo apt / dnf)
 install_deps() {
-  local -a list=(dialog sysstat tree at cron psmisc rsync curl)
+  local -a list=(dialog sysstat tree at cron psmisc rsync curl rclone)
   detect_distro
   if [[ $DISTRO_FAMILY == debian ]]; then list+=(msmtp whiptail); else list+=(s-nail newt); fi
   header "Cài gói phụ thuộc: ${list[*]}"

@@ -47,6 +47,8 @@ source "$TOOLKIT_DIR/lib/common.sh"
 source "$TOOLKIT_DIR/lib/cli.sh"
 # shellcheck source=lib/tui.sh
 source "$TOOLKIT_DIR/lib/tui.sh"
+# shellcheck source=lib/cloud.sh
+source "$TOOLKIT_DIR/lib/cloud.sh"
 
 # Thứ tự 5 chức năng trên menu (module mới đặt vào modules/ sẽ tự được nạp sau cùng)
 MODULE_ORDER=(users monitor alert backup scheduler)

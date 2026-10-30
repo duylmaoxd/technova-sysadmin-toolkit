@@ -14,12 +14,20 @@ Toolkit gom các công việc hằng ngày của anh vào **5 chức năng chín
 | # | Nhu cầu của anh Hưng | Chức năng | Lệnh tiêu biểu |
 |---|---|---|---|
 | 1 | Cấp quyền & quản lý nhân viên làm việc | `users` | `users create`, `users setup-dirs`, `users offboard` |
-| 2 | Xem ai đang làm gì, ai treo process ngốn CPU/RAM | `monitor` | `monitor who`, `monitor usage`, `monitor hogs`, `monitor kill` |
-| 3 | Nhận cảnh báo tức thời khi có sự cố, bất kể ngày đêm | `alert` | `alert check`, `alert setup-telegram`, `alert setup-mail` |
-| 4 | Sao lưu an toàn tài sản số của công ty | `backup` | `backup run`, `backup verify`, `backup restore` |
+| 2 | Xem ai đang làm gì, ai treo process ngốn CPU/RAM | `monitor` | `monitor who`, `monitor usage`, `monitor hogs`, `monitor kill`, `monitor logcheck` |
+| 3 | Nhận cảnh báo tức thời khi có sự cố, bất kể ngày đêm | `alert` | `alert check`, `alert security` (phát hiện tấn công), `alert ban`, `alert setup-telegram`, `alert setup-mail` |
+| 4 | Sao lưu an toàn tài sản số của công ty | `backup` | `backup run` (tự tải lên Google Drive), `backup cloud-setup`, `backup verify`, `backup restore` |
 | 5 | Tự động hoá các tác vụ bảo dưỡng hằng ngày | `scheduler` | `scheduler install`, `scheduler maintenance` |
 
 ---
+
+## Tài liệu đồ án
+| Tài liệu | Đường dẫn |
+|---|---|
+| Báo cáo (LaTeX → PDF, 29 trang) | [docs/bao-cao/bao-cao.pdf](docs/bao-cao/bao-cao.pdf) · mã nguồn `bao-cao.tex` · biên dịch lại bằng `docs/bao-cao/build.sh` |
+| Slide thuyết trình (16 slide, có ghi chú thuyết trình) | [docs/thuyet-trinh/LinuxAdmin-Toolkit-TechNova.pptx](docs/thuyet-trinh/LinuxAdmin-Toolkit-TechNova.pptx) |
+| Kịch bản demo & danh sách 73 test | [docs/KICH-BAN-DEMO.md](docs/KICH-BAN-DEMO.md) · script `tests/demo-test.sh` |
+| Hướng dẫn sử dụng | [HUONG-DAN-SU-DUNG.md](HUONG-DAN-SU-DUNG.md) |
 
 ## 1. Cài đặt & chạy trên máy Linux khác
 
@@ -104,13 +112,36 @@ Phòng ban tương ứng với nhóm Linux: `dev` (lập trình viên), `data` (
 | `overview` · `memory` · `disk` · `logs` · `auth` | Sức khoẻ máy chủ, log lỗi, các IP dò mật khẩu SSH |
 | **`troubleshoot`** | Chẩn đoán sự cố theo 10 bước, kèm gợi ý xử lý |
 | `report` · `watch` · `history` | Báo cáo HTML có biểu đồ, bảng theo dõi trực tiếp (nhấn q để thoát), lịch sử số liệu |
+| **`logcheck [giờ]`** | Đọc log hệ thống (journald hoặc `/var/log/auth.log`, `syslog`) và tổng hợp 7 mục: SSH thất bại theo IP, tên user bị dò, đăng nhập thành công/root, sudo/su, thay đổi tài khoản, dịch vụ lỗi, kernel (OOM, segfault, lỗi đĩa), tường lửa chặn |
+| **`log-upload`** | Đóng gói báo cáo logcheck + `syslog` + `auth.log` + log của toolkit thành `logs-<máy>-<thời điểm>.tar.gz` (kèm SHA-256), giữ 14 gói tại chỗ và **tải lên Google Drive** |
 
 ### 3.3. `alert` — Cảnh báo sự cố tức thời
 `alert check` chạy **mỗi 5 phút** (qua cron hoặc systemd timer) và kiểm tra:
 - **CPU, RAM và ổ đĩa** có vượt ngưỡng không;
 - **process ngốn tài nguyên**, kèm tên nhân viên và lệnh đang chạy;
 - **dịch vụ systemd** có bị chết không;
-- **đăng nhập SSH thất bại** ≥ 10 lần trong 10 phút (nghi bị dò mật khẩu).
+- **đăng nhập SSH thất bại** ≥ 10 lần trong 10 phút (nghi bị dò mật khẩu);
+- **dấu hiệu tấn công** (chạy `alert security`, xem bên dưới).
+
+**Phát hiện tấn công bất thường (IDS) — `alert security`.** Toolkit đọc log trong cửa sổ trượt 10 phút
+(`IDS_WINDOW_MIN`) và so sánh với một **trạng thái chuẩn** (baseline) đã chụp trước. Có 9 phép kiểm tra:
+
+| # | Dấu hiệu | Mức |
+|---|---|---|
+| 1 | Dò mật khẩu SSH: ≥ 5 lần sai từ cùng một IP (`IDS_SSH_FAIL_PER_IP`) | WARN |
+| 2 | Dò tên tài khoản (password spraying): ≥ 5 username không tồn tại bị thử | WARN |
+| 3 | **Đăng nhập thành công từ IP vừa dò mật khẩu** → nghi bị chiếm tài khoản | CRITICAL |
+| 4 | sudo sai mật khẩu nhiều lần · user không có trong sudoers cố dùng sudo | WARN / CRITICAL |
+| 5 | Quét cổng: tường lửa chặn ≥ 20 gói từ một IP | WARN |
+| 6 | File quan trọng bị sửa (`/etc/passwd`, `shadow`, `sudoers`, `sshd_config`, `crontab`...) — so SHA-256 | CRITICAL |
+| 7 | Tài khoản mới tạo **không qua toolkit**, tài khoản có **UID 0** | CRITICAL |
+| 8 | Cổng mạng mới mở (backdoor đang lắng nghe) | WARN |
+| 9 | Process chạy từ `/tmp`, `/var/tmp`, `/dev/shm` (kiểu mã độc đào coin) | CRITICAL |
+
+Có dấu hiệu mới thì toolkit gửi **một tin "[TẤN CÔNG]"** qua **Telegram và email**, kèm gợi ý xử lý.
+Mỗi dấu hiệu chỉ báo một lần trong 30 phút. Nếu bật `AUTO_BAN="yes"`, IP dò mật khẩu bị **chặn tự động**
+bằng `ufw` hoặc `iptables` (trừ các IP trong `IDS_WHITELIST`). Khi anh Hưng tự tạo user bằng toolkit,
+baseline được cập nhật tự động nên không báo nhầm. Sau khi sửa cấu hình hợp lệ bằng tay, chạy `alert baseline`.
 
 Cách gửi cảnh báo:
 - Gửi qua **email** (msmtp, Gmail App Password) và **Telegram** (nhận ngay trên điện thoại).
@@ -118,7 +149,7 @@ Cách gửi cảnh báo:
 - Hết sự cố thì tự gửi tin **"đã ổn định"**.
 
 Các lệnh liên quan: `setup-telegram` · `setup-mail` · `test` · `status` · `set-threshold CPU|MEM|DISK|HOG_CPU|HOG_MEM <%>` ·
-**`stress [giây]`** (tạo tải giả để demo cảnh báo) · `history`.
+**`stress [giây]`** (tạo tải giả để demo cảnh báo) · `history` · **`security`** · `baseline` · **`ban <IP>`** · `unban <IP>` · `banned`.
 
 ### 3.4. `backup` — Sao lưu an toàn tài sản số
 Mặc định sao lưu `/srv/technova` (dự án), `/home` (nhân viên) và `/etc` (cấu hình). Một lần `backup run` gồm các bước:
@@ -128,18 +159,26 @@ Mặc định sao lưu `/srv/technova` (dự án), `/home` (nhân viên) và `/e
 4. tạo **SHA-256**;
 5. **xoay vòng, giữ 7 bản** mới nhất;
 6. (tuỳ chọn) **rsync bản sao ra máy khác** (`BACKUP_REMOTE`);
-7. ghi lịch sử, và **gửi cảnh báo nếu thất bại**.
+7. (nếu đã kết nối) **tải bản sao lưu + file SHA-256 lên Google Drive**, xoá bản trên Drive cũ hơn 30 ngày (`GDRIVE_KEEP_DAYS`);
+8. ghi lịch sử, và **gửi cảnh báo nếu thất bại** (kể cả khi tải lên Drive lỗi).
 
-Các lệnh khác: `list` · `verify <file>` · `restore <file> [thư mục]` · `rotate` · `history`.
+Các lệnh khác: `list` · `verify <file>` · `restore <file> [thư mục]` · `rotate` · `history` ·
+**`cloud-setup`** · `cloud-status` · `upload [file]` · `cloud-list`.
+
+**Kết nối Google Drive** (dùng [rclone](https://rclone.org), quyền `drive.file` — toolkit chỉ thấy file do chính nó tạo):
+1. Trên máy **có trình duyệt** (laptop), cài rclone rồi chạy `rclone authorize "drive"`, đăng nhập Google, copy chuỗi JSON token in ra.
+2. Trên máy chủ: `sudo sysadmin backup cloud-setup` → dán token. Toolkit tạo remote `gdrive`, tải thử một file.
+3. Từ đó cấu trúc trên Drive là `TechNova-Server/<tên máy>/backups/` và `.../logs/`.
 
 ### 3.5. `scheduler` — Tự động hoá bảo dưỡng
 `scheduler install` ghi một **khối lịch riêng** vào crontab của root. Khối này cài lại hay gỡ đi đều không ảnh hưởng job khác:
 
 | Giờ chạy | Việc tự động |
 |---|---|
-| 02:00 hằng ngày | `backup run` — sao lưu |
+| 02:00 hằng ngày | `backup run` — sao lưu (và tải lên Google Drive) |
+| 02:30 hằng ngày | `monitor log-upload` — kiểm tra log, đóng gói và tải lên Google Drive |
 | 03:30 hằng ngày | **`scheduler maintenance`**: dọn file tạm cũ trong /tmp và /var/tmp, giữ log journald 30 ngày, dọn cache gói, xoá core dump, xoay vòng backup, báo nếu máy cần khởi động lại |
-| mỗi 5 phút | `alert check` — phát hiện sự cố và cảnh báo |
+| mỗi 5 phút | `alert check` — phát hiện sự cố **và tấn công**, cảnh báo qua Telegram/email |
 | 07:00 thứ Hai | `monitor report` — báo cáo tuần |
 
 Các lệnh khác: `list` · `remove` · `add "<lịch>" "<lệnh>"` · **`explain "<biểu thức cron>"`** (giải thích bằng tiếng Việt) ·
@@ -218,6 +257,8 @@ Mỗi chức năng **tự khai báo** các action của nó (`register_module`, 
 | Console tty hiện chữ tiếng Việt bị lỗi | Thêm `--ascii`, hoặc SSH vào từ terminal có font UTF-8 |
 | Không gửi được email | Chạy `sysadmin alert setup-mail`. Với Gmail cần bật xác minh 2 bước và dùng **Mật khẩu ứng dụng**; xem `logs/msmtp.log` |
 | Telegram | Tạo bot với @BotFather, nhắn bot một tin, lấy chat id tại `https://api.telegram.org/bot<TOKEN>/getUpdates`, rồi chạy `sysadmin alert setup-telegram` |
+| Google Drive báo "chưa kết nối" | Chạy `rclone authorize "drive"` trên laptop, rồi `sudo sysadmin backup cloud-setup`. Xem lỗi chi tiết ở `logs/rclone.log` |
+| IDS báo nhầm sau khi sửa cấu hình hợp lệ | `sudo sysadmin alert baseline`. IP của văn phòng nên thêm vào `IDS_WHITELIST` trước khi bật `AUTO_BAN` |
 | `at` hoặc cron không chạy | `sudo systemctl enable --now atd cron` |
 
 ## 7. Đã kiểm thử
@@ -231,5 +272,9 @@ Mỗi chức năng **tự khai báo** các action của nó (`register_module`, 
   - cài cron và chạy bảo dưỡng (đã xoá đúng file tạm cũ);
   - dọn demo.
 - **Docker**: build image, `docker compose up`, SSH vào cổng 2222 bằng tài khoản `hung`, rồi chạy `users create`, `monitor who`, `backup run` đều thành công.
+- **Kiểm thử tự động** `tests/demo-test.sh` trong container: **73/73 PASS**, gồm cả mô phỏng tấn công (dò mật khẩu, password spraying,
+  đăng nhập sau khi dò, tạo user UID 0, chạy file từ /tmp), chặn/bỏ chặn IP bằng iptables, và tải backup + log lên một
+  "Google Drive" giả lập (remote rclone kiểu local).
+- **Gửi cảnh báo** được kiểm chứng bằng máy chủ Telegram API và SMTP giả lập: tin "[TẤN CÔNG]" liệt kê đủ 11 dấu hiệu, tới được cả hai kênh.
 - **shellcheck**: không còn cảnh báo.
 - Riêng `monitor renice` trong container báo *Operation not permitted*, vì Docker không cấp quyền CAP_SYS_NICE. Trên máy chủ thật, chạy bằng sudo sẽ hoạt động.

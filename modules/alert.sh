@@ -12,7 +12,12 @@
 # =============================================================================
 
 register_module alert 3 "Cảnh báo sự cố tức thời (email / Telegram)"
-register_action check         ""  "Kiểm tra CPU/RAM/disk, process ngốn tài nguyên, dịch vụ chết, dò mật khẩu SSH → gửi cảnh báo"
+register_action check         ""  "Kiểm tra tài nguyên + PHÁT HIỆN TẤN CÔNG → gửi cảnh báo email/Telegram (job cron 5 phút)"
+register_action security      "r" "Phát hiện tấn công & bất thường: brute-force SSH, dò user, sudo trái phép, file hệ thống bị sửa, cổng lạ, process độc hại"
+register_action baseline      "r" "Chụp lại \"trạng thái chuẩn\" (file hệ thống quan trọng, cổng đang mở) sau khi admin thay đổi hợp lệ"
+register_action ban           "rd" "Chặn một IP tấn công bằng tường lửa (ufw / iptables)" "Địa chỉ IP"
+register_action unban         "rd" "Bỏ chặn một IP" "Địa chỉ IP=@_pick_banned"
+register_action banned        ""  "Danh sách IP đang bị chặn"
 register_action status        ""  "Ngưỡng cảnh báo, giá trị hiện tại & kênh gửi đang dùng"
 register_action test          ""  "Gửi email thử nghiệm" "Email người nhận=$ALERT_EMAIL"
 register_action setup-mail    "d" "Cấu hình gửi email qua SMTP (msmtp — ví dụ Gmail App Password)" "Máy chủ SMTP=smtp.gmail.com" "Cổng=587|465" "Tài khoản email dùng để gửi" "*Mật khẩu ứng dụng (App Password)" "Email nhận cảnh báo=$ALERT_EMAIL"
@@ -52,10 +57,10 @@ alert_send() {
     case $method in
       msmtp-toolkit)
         from=$(awk '$1 == "from" { print $2; exit }' "$CONFIG_DIR/msmtprc")
-        _mail_message "$to" "${from:-$to}" "$subject" "$body" | msmtp -C "$CONFIG_DIR/msmtprc" -t && sent=1 ;;
-      msmtp) _mail_message "$to" "$(id -un)@$(hostname)" "$subject" "$body" | msmtp -t && sent=1 ;;
-      mail) printf '%s\n' "$body" | mail -s "$subject" "$to" && sent=1 ;;
-      sendmail) _mail_message "$to" "root@$(hostname)" "$subject" "$body" | sendmail -t && sent=1 ;;
+        _mail_message "$to" "${from:-$to}" "$subject" "$body" | timeout 45 msmtp -C "$CONFIG_DIR/msmtprc" -t && sent=1 ;;
+      msmtp) _mail_message "$to" "$(id -un)@$(hostname)" "$subject" "$body" | timeout 45 msmtp -t && sent=1 ;;
+      mail) printf '%s\n' "$body" | timeout 45 mail -s "$subject" "$to" && sent=1 ;;
+      sendmail) _mail_message "$to" "root@$(hostname)" "$subject" "$body" | timeout 45 sendmail -t && sent=1 ;;
     esac
     if ((sent)); then log_ok "Đã gửi email tới $to ($method)"
     else log_warn "Chưa gửi được email (kênh: $method) — cấu hình bằng: $PROG alert setup-mail"; fi
@@ -64,7 +69,7 @@ alert_send() {
   fi
   if [[ -n ${TELEGRAM_BOT_TOKEN:-} && -n ${TELEGRAM_CHAT_ID:-} ]] && has curl; then
     if [[ $(curl -s -m 10 -o /dev/null -w '%{http_code}' --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
-      --data-urlencode "text=$subject"$'\n\n'"$body" "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage") == 200 ]]; then
+      --data-urlencode "text=$subject"$'\n\n'"$body" "${TELEGRAM_API%/}/bot$TELEGRAM_BOT_TOKEN/sendMessage") == 200 ]]; then
       log_ok "Đã gửi Telegram"
       sent=1
     else
@@ -115,13 +120,6 @@ alert_check() {
   if ((failed > 0)); then
     msgs+=("$failed dịch vụ systemd bị lỗi: $({ systemctl --failed --no-legend --plain 2>/dev/null || true; } | awk '{ printf "%s ", $1 }')")
   fi
-  # Dò mật khẩu SSH trong 10 phút qua
-  local fails=0
-  if has journalctl && [[ -d /run/systemd/system ]]; then
-    fails=$({ journalctl -u ssh -u sshd --since "-10min" --no-pager -q 2>/dev/null || true; } |
-      grep -cE 'Failed password|Invalid user' || true)
-  fi
-  if ((fails >= SSH_FAIL_THRESHOLD)); then msgs+=("$fails lần đăng nhập SSH thất bại trong 10 phút (nghi dò mật khẩu)"); fi
   [[ $DRY_RUN == 1 ]] || _alert_metrics "$CPU_PCT" "$MEM_PCT" "$SWAP_PCT" "$disk_max" "$load"
 
   header "Kiểm tra tài nguyên $(date '+%d/%m/%Y %H:%M:%S')"
@@ -129,7 +127,6 @@ alert_check() {
   kv "RAM" "$(bar "$MEM_PCT" 25 $((MEM_THRESHOLD - 15)) "$MEM_THRESHOLD")  ngưỡng $MEM_THRESHOLD%"
   kv "Ổ đầy nhất ($disk_mnt)" "$(bar "$disk_max" 25 $((DISK_THRESHOLD - 15)) "$DISK_THRESHOLD")  ngưỡng $DISK_THRESHOLD%"
   kv "Load 1 phút" "$load"
-  kv "SSH thất bại (10 phút)" "${fails:-0} lần (ngưỡng $SSH_FAIL_THRESHOLD)"
 
   host=$(hostname)
   now=$(date +%s)
@@ -163,6 +160,8 @@ alert_check() {
     fi
     [[ $DRY_RUN == 1 ]] || echo OK >"$state"
   fi
+  # Phát hiện tấn công / bất thường bảo mật (gửi cảnh báo riêng, tiêu đề [TẤN CÔNG])
+  alert_security || true
   return 0
 }
 
@@ -229,6 +228,7 @@ auth           on
 tls            on
 tls_starttls   $starttls
 tls_trust_file $trust
+timeout        20
 logfile        $LOG_DIR/msmtp.log
 
 account        toolkit
@@ -314,4 +314,260 @@ alert_setup_telegram() {
   [[ $(stat -c %a "$CONFIG_FILE") == 6?4 ]] && log_warn "File cấu hình chứa token: nên chmod 640 $CONFIG_FILE (chỉ root/nhóm admin đọc)."
   log_info "Gửi tin nhắn thử..."
   ALERT_EMAIL="" alert_send "[THỬ NGHIỆM] $(hostname): $COMPANY_NAME đã kết nối Telegram" "Từ giờ cảnh báo sự cố máy chủ sẽ được gửi tới đây."
+}
+
+# ======================================================= PHÁT HIỆN TẤN CÔNG (IDS) ===
+# Đọc log theo "cửa sổ trượt" IDS_WINDOW_MIN phút, so trạng thái hệ thống với bản chuẩn
+# (baseline), phát hiện 9 nhóm dấu hiệu, chống cảnh báo trùng, tuỳ chọn tự chặn IP.
+IDS_WATCH_FILES="/etc/passwd /etc/shadow /etc/group /etc/gshadow /etc/sudoers /etc/ssh/sshd_config /root/.ssh/authorized_keys /etc/crontab"
+
+# _tail_window <tên> <file...> — dòng MỚI của file log trong IDS_WINDOW_MIN phút gần nhất.
+# Ghi nhớ vị trí đã đọc (inode + byte) và lưu đệm các dòng kèm thời điểm đọc, nên chạy cron
+# 5 phút/lần vẫn có cửa sổ 10 phút; lần chạy đầu chỉ đánh dấu vị trí (không cảnh báo log cũ).
+_tail_window() {
+  local name=$1 f="" buf off now size inode li=0 lo=0
+  shift
+  for f in "$@"; do [[ -r $f ]] && break; f=""; done
+  [[ -n $f ]] || return 0
+  buf="$STATE_DIR/ids-$name.buf" off="$STATE_DIR/ids-$name.off"
+  now=$(date +%s) size=$(stat -c %s "$f") inode=$(stat -c %i "$f")
+  if [[ -r $off ]]; then read -r li lo <"$off" || true
+  else echo "$inode $size" >"$off"; : >"$buf"; return 0; fi
+  if [[ $li != "$inode" ]] || ((size < lo)); then lo=0; fi # log vừa bị xoay vòng (logrotate)
+  if ((size > lo)); then tail -c +$((lo + 1)) "$f" | awk -v t="$now" '{ print t "\t" $0 }' >>"$buf"; fi
+  echo "$inode $size" >"$off"
+  awk -F'\t' -v c=$((now - IDS_WINDOW_MIN * 60)) '$1 >= c' "$buf" >"$buf.tmp" && mv "$buf.tmp" "$buf"
+  cut -f2- "$buf"
+}
+
+_ids_auth() {
+  if has journalctl && [[ -d /run/systemd/system ]]; then
+    journalctl --since "-${IDS_WINDOW_MIN}min" --no-pager -q -o short-iso SYSLOG_FACILITY=4 + SYSLOG_FACILITY=10 2>/dev/null || true
+  else _tail_window auth /var/log/auth.log /var/log/secure; fi
+}
+_ids_kern() {
+  if has journalctl && [[ -d /run/systemd/system ]]; then
+    journalctl -k --since "-${IDS_WINDOW_MIN}min" --no-pager -q -o short-iso 2>/dev/null || true
+  else _tail_window kern /var/log/kern.log /var/log/syslog /var/log/messages; fi
+}
+
+_ids_files() { local f; for f in $IDS_WATCH_FILES /etc/sudoers.d/*; do [[ -f $f ]] && printf '%s\n' "$f"; done; return 0; }
+_ids_ports() { { ss -tulnH 2>/dev/null || true; } | awk '{ print $1 " " $5 }' | sed -E 's/%[^:]*:/:/' | sort -u; }
+
+# _ids_baseline_files [quiet] — chụp lại checksum file quan trọng & danh sách cổng đang mở
+_ids_baseline_files() {
+  [[ $DRY_RUN == 1 ]] && return 0
+  ((EUID == 0)) || return 0
+  _ids_files | xargs -r sha256sum >"$STATE_DIR/ids-integrity.sha" 2>/dev/null || true
+  awk -F: '{ print $1 ":" $3 }' /etc/passwd | sort >"$STATE_DIR/ids-users.list"
+  _ids_ports >"$STATE_DIR/ids-ports.list"
+  chmod 600 "$STATE_DIR"/ids-* 2>/dev/null || true
+  [[ ${1:-} == quiet ]] || log_ok "Đã chụp trạng thái chuẩn: $(wc -l <"$STATE_DIR/ids-integrity.sha") file, $(wc -l <"$STATE_DIR/ids-ports.list") cổng."
+}
+
+_ids_whitelisted() { local w; for w in $IDS_WHITELIST; do [[ $1 == "$w" ]] && return 0; done; return 1; }
+
+_ban_ip() { # _ban_ip <ip> <lý do>
+  local ip=$1 why=${2:-thủ công}
+  [[ $ip =~ ^[0-9a-fA-F:.]+$ ]] || { log_error "IP không hợp lệ: $ip"; return 1; }
+  _ids_whitelisted "$ip" && { log_warn "IP $ip nằm trong IDS_WHITELIST — không chặn."; return 0; }
+  grep -q "^$ip " "$STATE_DIR/banned.list" 2>/dev/null && return 0
+  if has ufw && ufw status 2>/dev/null | grep -q 'Status: active'; then
+    run ufw insert 1 deny from "$ip" comment "sysadmin-toolkit IDS" >/dev/null || return 1
+  elif has iptables; then
+    run iptables -I INPUT -s "$ip" -j DROP -m comment --comment "sysadmin-toolkit IDS" || return 1
+  else
+    log_error "Không có ufw/iptables để chặn IP."; return 1
+  fi
+  [[ $DRY_RUN == 1 ]] || printf '%s %s %s\n' "$ip" "$(date +%s)" "${why// /_}" >>"$STATE_DIR/banned.list"
+  syslog_event "IDS BAN: $ip ($why)"
+  return 0
+}
+
+# _ids_new <khoá> — 0 nếu dấu hiệu này CHƯA được cảnh báo trong ALERT_COOLDOWN_MIN phút (chống spam)
+_ids_new() {
+  local key=$1 seen="$STATE_DIR/ids-seen" now last
+  now=$(date +%s)
+  last=$(awk -v k="$key" '$1 == k { t = $2 } END { print t + 0 }' "$seen" 2>/dev/null || echo 0)
+  ((now - last >= ALERT_COOLDOWN_MIN * 60)) || return 1
+  [[ $DRY_RUN == 1 ]] || { grep -v "^$key " "$seen" 2>/dev/null; echo "$key $now"; } >"$seen.tmp" 2>/dev/null && mv "$seen.tmp" "$seen" 2>/dev/null
+  return 0
+}
+
+alert_security() {
+  local auth kern ip user n line key sev
+  local -a finds=() keys=() sevs=() bans=()
+  # add <mức> <khoá chống trùng> <mô tả>
+  add() { sevs+=("$1"); keys+=("$2"); finds+=("$3"); }
+  ((EUID == 0)) || log_warn "Không phải root — nhiều kiểm tra bảo mật sẽ thiếu dữ liệu (chạy bằng sudo)."
+  if [[ ! -f $STATE_DIR/ids-integrity.sha ]] && ((EUID == 0)); then
+    _ids_baseline_files quiet
+    log_info "Lần chạy đầu: đã tạo trạng thái chuẩn (baseline) để so sánh cho các lần sau."
+  fi
+  auth=$(_ids_auth)
+  kern=$(_ids_kern)
+
+  # 1. Brute-force SSH: nhiều lần sai mật khẩu từ cùng một IP
+  while read -r n ip; do
+    [[ -n $ip ]] || continue
+    _ids_whitelisted "$ip" && continue
+    add WARN "ssh-brute:$ip" "Dò mật khẩu SSH: $n lần thất bại từ IP $ip trong $IDS_WINDOW_MIN phút"
+    [[ ${AUTO_BAN,,} == yes ]] && bans+=("$ip")
+  done < <({ grep -E 'Failed [a-z/-]+ for ' <<<"$auth" || true; } |
+    grep -oE 'from [0-9a-fA-F:.]+' | awk '{ print $2 }' | sort | uniq -c |
+    awk -v t="$IDS_SSH_FAIL_PER_IP" '$1 >= t { print $1, $2 }' || true)
+
+  # 2. Dò tên tài khoản (password spraying): thử nhiều username không tồn tại
+  n=$({ grep -oE 'Invalid user [^ ]+' <<<"$auth" || true; } | awk '{ print $3 }' | sort -u | grep -c . || true)
+  if ((n >= IDS_SPRAY_USERS)); then
+    add WARN "ssh-spray" "Dò tên tài khoản: $n username không tồn tại bị thử ($({ grep -oE 'Invalid user [^ ]+' <<<"$auth" || true; } | awk '{ print $3 }' | sort -u | take 5 | paste -sd, -)...)"
+  fi
+
+  # 3. Đăng nhập THÀNH CÔNG từ IP vừa dò mật khẩu → nghi bị chiếm tài khoản
+  while read -r user ip; do
+    [[ -n $ip ]] || continue
+    n=$({ grep -E 'Failed [a-z/-]+ for ' <<<"$auth" || true; } | grep -cF "from $ip " || true)
+    ((n > 0)) && add CRITICAL "ssh-compromise:$user@$ip" "NGHI BỊ CHIẾM TÀI KHOẢN: $user đăng nhập thành công từ $ip sau $n lần thất bại"
+    [[ $user == root ]] && add WARN "ssh-root:$ip" "Đăng nhập SSH trực tiếp bằng root từ $ip"
+  done < <({ grep -oE 'Accepted [a-z-]+ for [^ ]+ from [0-9a-fA-F:.]+' <<<"$auth" || true; } | awk '{ print $4, $6 }' | sort -u || true)
+
+  # 4. Dùng sudo trái phép / sai mật khẩu nhiều lần
+  while read -r n user; do
+    [[ -n $user ]] || continue
+    add WARN "sudo-fail:$user" "sudo thất bại $n lần bởi $user (thử chiếm quyền root?)"
+  done < <({ grep -E 'sudo.*(incorrect password attempt|authentication failure)' <<<"$auth" || true; } |
+    sed -nE 's/.*sudo(\[[0-9]+\])?: +([a-z_][a-z0-9_-]*) :.*/\2/p; s/.*pam_unix\(sudo:auth\).*ruser=([a-z_][a-z0-9_-]*).*/\1/p' |
+    sort | uniq -c | awk -v t="$IDS_SUDO_FAIL" '$1 >= t { print $1, $2 }' || true)
+  while read -r user; do
+    [[ -n $user ]] && add CRITICAL "sudo-deny:$user" "$user cố dùng sudo nhưng KHÔNG có trong sudoers"
+  done < <({ grep -E 'NOT in sudoers' <<<"$auth" || true; } | sed -nE 's/.*sudo(\[[0-9]+\])?: +([a-z_][a-z0-9_-]*) :.*/\2/p' | sort -u || true)
+
+  # 5. Quét cổng: tường lửa chặn nhiều gói từ một IP
+  while read -r n ip; do
+    [[ -n $ip ]] || continue
+    _ids_whitelisted "$ip" && continue
+    add WARN "portscan:$ip" "Nghi quét cổng: tường lửa chặn $n gói từ $ip"
+    [[ ${AUTO_BAN,,} == yes ]] && bans+=("$ip")
+  done < <({ grep -E 'UFW BLOCK|IPTABLES.*DROP' <<<"$kern" || true; } | grep -oE 'SRC=[0-9a-fA-F:.]+' | cut -d= -f2 |
+    sort | uniq -c | awk -v t="$IDS_SCAN_HITS" '$1 >= t { print $1, $2 }' || true)
+
+  if ((EUID == 0)) && [[ -f $STATE_DIR/ids-integrity.sha ]]; then
+    # 6. File hệ thống quan trọng bị sửa (tài khoản, sudoers, SSH, crontab)
+    while read -r line; do
+      [[ -n $line ]] && add CRITICAL "integrity:$line" "File quan trọng bị THAY ĐỔI: $line"
+    done < <(sha256sum -c --quiet "$STATE_DIR/ids-integrity.sha" 2>/dev/null | awk -F: '/FAILED/ { print $1 }' || true)
+    while read -r line; do
+      [[ -n $line ]] && add CRITICAL "integrity-new:$line" "File quan trọng MỚI xuất hiện: $line"
+    done < <(comm -13 <(awk '{ print $2 }' "$STATE_DIR/ids-integrity.sha" | sort) <(_ids_files | sort) || true)
+    # 7. Tài khoản mới / tài khoản có UID 0 ngoài root
+    while read -r line; do
+      [[ -n $line ]] && add CRITICAL "newuser:$line" "Tài khoản MỚI không qua toolkit: ${line%%:*} (UID ${line#*:})"
+    done < <(comm -13 "$STATE_DIR/ids-users.list" <(awk -F: '{ print $1 ":" $3 }' /etc/passwd | sort) 2>/dev/null || true)
+    while read -r user; do
+      [[ -n $user ]] && add CRITICAL "uid0:$user" "Tài khoản $user có UID 0 (quyền root) — rất nguy hiểm"
+    done < <(awk -F: '$3 == 0 && $1 != "root" { print $1 }' /etc/passwd || true)
+    # 8. Cổng mạng mới mở (backdoor?)
+    while read -r line; do
+      [[ -n $line ]] && add WARN "port:$line" "Cổng mới đang lắng nghe: $line ($({ ss -tulnpH 2>/dev/null | grep -F " ${line#* } " | grep -oE 'users:\(\("[^"]+' || true; } | take 1 | cut -d'"' -f2))"
+    done < <(comm -13 "$STATE_DIR/ids-ports.list" <(_ids_ports) 2>/dev/null || true)
+  fi
+
+  # 9. Process đáng ngờ: chạy từ /tmp, /dev/shm; tên công cụ đào coin; reverse shell
+  local pid exe cmd
+  for pid in /proc/[0-9]*; do
+    pid=${pid#/proc/}
+    ((pid == $$ || pid == BASHPID)) && continue
+    exe=$(readlink "/proc/$pid/exe" 2>/dev/null) || continue
+    cmd=$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | cut -c1-120)
+    if [[ $exe == /tmp/* || $exe == /dev/shm/* || $exe == /var/tmp/* ]]; then
+      add CRITICAL "proc-tmp:$pid" "Process PID $pid ($(stat -c %U "/proc/$pid" 2>/dev/null)) chạy từ thư mục tạm: $exe"
+    elif [[ $cmd =~ (xmrig|minerd|cpuminer|kdevtmpfsi|kinsing|stratum\+tcp) ]]; then
+      add CRITICAL "proc-miner:$pid" "Nghi phần mềm đào coin: PID $pid — $cmd"
+    elif [[ $cmd =~ (bash\ -i|sh\ -i).*(/dev/tcp|>\&) || $cmd =~ (nc|ncat|netcat)\ .*-e\  || $cmd =~ /dev/tcp/[0-9] ]]; then
+      add CRITICAL "proc-revshell:$pid" "Nghi reverse shell: PID $pid — $cmd"
+    fi
+  done
+
+  # ---- In kết quả & gửi cảnh báo
+  header "Phát hiện tấn công & bất thường (cửa sổ $IDS_WINDOW_MIN phút)"
+  local crit=0 newcrit=0 i
+  local -a newf=()
+  if ((${#finds[@]} == 0)); then
+    status OK "Không phát hiện dấu hiệu tấn công"
+  fi
+  for i in "${!finds[@]}"; do
+    if [[ ${sevs[i]} == CRITICAL ]]; then status FAIL "${finds[i]}"; crit=$((crit + 1)); else status WARN "${finds[i]}"; fi
+    if _ids_new "${keys[i]}"; then
+      newf+=("[${sevs[i]}] ${finds[i]}")
+      [[ ${sevs[i]} == CRITICAL ]] && newcrit=$((newcrit + 1))
+    fi
+  done
+  for ip in $(printf '%s\n' "${bans[@]}" | sort -u); do
+    if _ban_ip "$ip" "IDS tự động"; then status OK "Đã TỰ ĐỘNG CHẶN IP $ip"; newf+=("[ĐÃ CHẶN] IP $ip bị chặn tự động bằng tường lửa"); fi
+  done
+  if ((${#newf[@]})); then
+    local body
+    body=$(
+      printf 'Máy chủ : %s\nThời điểm: %s\n\nDấu hiệu phát hiện:\n' "$(hostname)" "$(date '+%d/%m/%Y %H:%M:%S')"
+      printf '  - %s\n' "${newf[@]}"
+      printf '\nGợi ý xử lý:\n  - Xem chi tiết: %s monitor logcheck 1\n  - Chặn IP: %s alert ban <IP>\n' "$PROG" "$PROG"
+      printf '  - Ngắt phiên/khoá tài khoản: %s users kick|lock <user>\n  - Nếu thay đổi là hợp lệ: %s alert baseline\n' "$PROG" "$PROG"
+      printf '\n-- Gửi tự động bởi %s (IDS)\n' "$TOOLKIT_NAME"
+    )
+    local extra=""
+    ((newcrit > 0)) && extra=" ($newcrit nghiêm trọng)"
+    alert_send "[TẤN CÔNG] $(hostname): ${#newf[@]} dấu hiệu bất thường$extra" "$body"
+  elif ((${#finds[@]})); then
+    log_info "Các dấu hiệu trên đã được cảnh báo trong $ALERT_COOLDOWN_MIN phút qua — không gửi lại."
+  fi
+  syslog_event "IDS: ${#finds[@]} dấu hiệu ($crit nghiêm trọng)"
+  unset -f add
+  return 0
+}
+
+alert_baseline() {
+  require_root
+  header "Chụp trạng thái chuẩn cho hệ thống phát hiện tấn công"
+  _ids_baseline_files
+  [[ $DRY_RUN == 1 ]] && return 0
+  printf '  File theo dõi: %s\n' "$(awk '{ print $2 }' "$STATE_DIR/ids-integrity.sha" | paste -sd' ' -)"
+  printf '  Cổng đang mở : %s\n' "$(paste -sd' ' "$STATE_DIR/ids-ports.list")"
+}
+
+alert_ban() {
+  require_root
+  header "Chặn IP $1"
+  _ban_ip "$1" "thủ công" && [[ $DRY_RUN != 1 ]] && log_ok "Đã chặn $1"
+  return 0
+}
+
+alert_unban() {
+  local ip=$1
+  require_root
+  [[ $ip =~ ^[0-9a-fA-F:.]+$ ]] || die "IP không hợp lệ: $ip"
+  if has ufw && ufw status 2>/dev/null | grep -q 'Status: active'; then run ufw delete deny from "$ip" >/dev/null || true
+  elif has iptables; then
+    while iptables -C INPUT -s "$ip" -j DROP -m comment --comment "sysadmin-toolkit IDS" 2>/dev/null; do
+      run iptables -D INPUT -s "$ip" -j DROP -m comment --comment "sysadmin-toolkit IDS" || break
+      [[ $DRY_RUN == 1 ]] && break
+    done
+  fi
+  [[ $DRY_RUN == 1 ]] || { grep -v "^$ip " "$STATE_DIR/banned.list" >"$STATE_DIR/banned.tmp" 2>/dev/null || true; mv "$STATE_DIR/banned.tmp" "$STATE_DIR/banned.list"; }
+  syslog_event "IDS UNBAN: $ip"
+  log_ok "Đã bỏ chặn $ip"
+}
+
+_pick_banned() {
+  local ip t why
+  [[ -r $STATE_DIR/banned.list ]] || return 0
+  while read -r ip t why; do printf '%s\tchặn lúc %s (%s)\n' "$ip" "$(date -d "@$t" '+%d/%m %H:%M')" "${why//_/ }"; done <"$STATE_DIR/banned.list"
+}
+
+alert_banned() {
+  header "IP đang bị chặn bởi toolkit"
+  if [[ ! -s $STATE_DIR/banned.list ]]; then printf '  (không có)\n'; return 0; fi
+  while read -r ip t why; do
+    printf '  %-40s %s  %s\n' "$ip" "$(date -d "@$t" '+%d/%m/%Y %H:%M')" "${why//_/ }"
+  done <"$STATE_DIR/banned.list"
+  printf '\n%sBỏ chặn: %s alert unban <IP> · Tự động chặn: AUTO_BAN=yes trong toolkit.conf (hiện: %s)%s\n' "$C_DIM" "$PROG" "$AUTO_BAN" "$C_RESET"
 }

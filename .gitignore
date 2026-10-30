@@ -6,3 +6,4 @@ reports/*
 # Chứa mật khẩu SMTP
 config/msmtprc
 dist/
+docs/bao-cao/*.log

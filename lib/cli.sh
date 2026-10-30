@@ -170,6 +170,12 @@ cli_dispatch() {
   CUR_MODULE=$mod CUR_ACTION=$act
   _log_write RUN "$(shell_quote "$mod" "$act" "$@")$( ((DRY_RUN)) && printf ' (dry-run)')"
   "$fn" "${args[@]}"
+  # Admin vừa thay đổi tài khoản qua toolkit → cập nhật "trạng thái chuẩn" của hệ thống phát hiện
+  # tấn công, để chỉ những thay đổi KHÔNG qua toolkit mới bị cảnh báo
+  if [[ $mod == users && ${ACT_FLAGS[$mod/$act]} == *d* ]] && declare -F _ids_baseline_files >/dev/null; then
+    _ids_baseline_files quiet
+  fi
+  return 0
 }
 
 # ------------------------------------------------------------ MENU VĂN BẢN ---

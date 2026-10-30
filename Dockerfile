@@ -13,12 +13,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Ho_Chi_Minh
 
 # Gói phụ thuộc của 5 chức năng + SSH server để quản trị từ xa
+# rsyslog: ghi /var/log/auth.log, syslog (cho logcheck & phát hiện tấn công) · rclone: Google Drive · iptables: chặn IP
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       bash sudo passwd procps psmisc tree sysstat iproute2 iputils-ping \
       dialog whiptail cron at msmtp ca-certificates curl rsync \
       openssh-server bsdextrautils less nano tzdata \
- && rm -rf /var/lib/apt/lists/*
+      rsyslog rclone iptables \
+ && rm -rf /var/lib/apt/lists/* \
+ && sed -i 's/^module(load="imklog"/#&/' /etc/rsyslog.conf
 
 # Cài toolkit vào /opt/sysadmin-toolkit + lệnh "sysadmin" (giống cài trên máy thật)
 COPY . /tmp/sysadmin-toolkit

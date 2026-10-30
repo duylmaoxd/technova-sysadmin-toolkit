@@ -14,7 +14,7 @@
 
 register_module scheduler 5 "Tự động hoá bảo dưỡng & lập lịch (cron, at, timer)"
 register_action list      ""  "Xem mọi lịch: crontab, /etc/cron.d, systemd timer, hàng đợi at"
-register_action install   "r" "Cài lịch tự động: sao lưu, bảo dưỡng hằng ngày, cảnh báo 5 phút, báo cáo tuần" "Lịch sao lưu=$CRON_BACKUP" "Lịch kiểm tra & cảnh báo=$CRON_CHECK" "Lịch báo cáo=$CRON_REPORT" "Lịch bảo dưỡng=$CRON_MAINT"
+register_action install   "r" "Cài lịch tự động: sao lưu, bảo dưỡng hằng ngày, cảnh báo 5 phút, báo cáo tuần" "Lịch sao lưu=$CRON_BACKUP" "Lịch kiểm tra & cảnh báo=$CRON_CHECK" "Lịch báo cáo=$CRON_REPORT" "Lịch bảo dưỡng=$CRON_MAINT" "Lịch kiểm tra & upload log=$CRON_LOGS"
 register_action maintenance "rd" "Bảo dưỡng ngay: dọn /tmp, log journald cũ, cache gói, core dump, xoay vòng backup" "Xoá file tạm cũ hơn (ngày)=$MAINT_TMP_DAYS"
 register_action remove    "r" "Gỡ toàn bộ lịch cron do toolkit tạo"
 register_action add       ""  "Thêm một cron job tuỳ chỉnh" "Lịch (5 trường)=*/10 * * * *" "Lệnh=date >> /tmp/cron-test.log"
@@ -122,9 +122,9 @@ EOF
 }
 
 scheduler_install() {
-  local b=${1:-$CRON_BACKUP} c=${2:-$CRON_CHECK} r=${3:-$CRON_REPORT} mt=${4:-$CRON_MAINT} x self log block custom
+  local b=${1:-$CRON_BACKUP} c=${2:-$CRON_CHECK} r=${3:-$CRON_REPORT} mt=${4:-$CRON_MAINT} lg=${5:-$CRON_LOGS} x self log block custom
   need_cmd crontab cron || return 1
-  for x in "$b" "$c" "$r" "$mt"; do _cron_valid "$x" || die "Biểu thức cron không hợp lệ: '$x'"; done
+  for x in "$b" "$c" "$r" "$mt" "$lg"; do _cron_valid "$x" || die "Biểu thức cron không hợp lệ: '$x'"; done
   if ((EUID != 0)); then
     log_warn "Đang cài vào crontab của $(id -un). Sao lưu /etc cần root → nên chạy: sudo $PROG scheduler install"
   elif [[ $(stat -c %u "$TOOLKIT_DIR") != 0 ]]; then
@@ -138,9 +138,11 @@ scheduler_install() {
   custom=$(_cron_block | grep '# tk-custom$' || true)
   block="# Sao lưu hằng ngày
 $b $self --no-color --yes backup run >> $log 2>&1
+# Kiểm tra log & đưa gói log lên Google Drive
+$lg $self --no-color --yes monitor log-upload >> $log 2>&1
 # Bảo dưỡng hằng ngày: dọn file tạm, log cũ, cache gói
 $mt $self --no-color --yes scheduler maintenance >> $log 2>&1
-# Kiểm tra sự cố (tài nguyên, process, dịch vụ, SSH) & gửi cảnh báo
+# Kiểm tra tài nguyên + phát hiện tấn công & gửi cảnh báo
 $c $self --no-color alert check >> $log 2>&1
 # Báo cáo hệ thống hằng tuần (HTML trong thư mục reports/)
 $r $self --no-color monitor report >> $log 2>&1"

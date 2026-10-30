@@ -350,6 +350,9 @@ pkg_install() {
 load_config() {
   # --- Giá trị mặc định (file config/toolkit.conf sẽ ghi đè) ---
   COMPANY_NAME="TechNova Solutions"
+  GDRIVE_REMOTE="" GDRIVE_KEEP_DAYS=30 CRON_LOGS="30 2 * * *" LOGCHECK_HOURS=24
+  IDS_WINDOW_MIN=10 IDS_SSH_FAIL_PER_IP=5 IDS_SPRAY_USERS=5 IDS_SUDO_FAIL=3 IDS_SCAN_HITS=20
+  AUTO_BAN=no IDS_WHITELIST="127.0.0.1 ::1" TELEGRAM_API="https://api.telegram.org"
   CPU_THRESHOLD=80 MEM_THRESHOLD=85 DISK_THRESHOLD=90
   HOG_CPU=90 HOG_MEM=30 SSH_FAIL_THRESHOLD=10
   DEPARTMENTS="dev data qa" SHARED_ROOT=/srv/technova

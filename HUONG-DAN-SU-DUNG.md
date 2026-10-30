@@ -92,11 +92,13 @@ sudo nano /opt/sysadmin-toolkit/config/toolkit.conf   # tên công ty, phòng ba
 sudo nano /opt/sysadmin-toolkit/config/users.csv      # danh sách nhân viên
 sudo sysadmin alert setup-telegram                    # nhận cảnh báo qua Telegram (khuyên dùng)
 sudo sysadmin alert setup-mail                        # và/hoặc qua email (Gmail: dùng "Mật khẩu ứng dụng")
+sudo sysadmin backup cloud-setup                      # (tuỳ chọn) tải backup & log lên Google Drive — xem mục 4.4
+sudo sysadmin alert baseline                          # chụp trạng thái chuẩn cho hệ thống phát hiện tấn công
 ```
 
 ### Bước 4: Bật tự động hoá
 ```bash
-sudo sysadmin scheduler install    # sao lưu 02:00, bảo dưỡng 03:30, cảnh báo 5 phút/lần, báo cáo thứ Hai
+sudo sysadmin scheduler install    # sao lưu 02:00, upload log 02:30, bảo dưỡng 03:30, cảnh báo 5 phút/lần, báo cáo thứ Hai
 sudo crontab -l                    # kiểm tra
 ```
 Nếu muốn dùng systemd timer thay cho cron: `sudo sysadmin scheduler timers-install`.
@@ -154,6 +156,12 @@ sudo ./sysadmin.sh --tui           # các chức năng quản trị cần quyề
 | Bảo dưỡng ngay | `sudo sysadmin scheduler maintenance` |
 | Hiểu một biểu thức cron | `sysadmin scheduler explain "30 3 * * *"` |
 | Hẹn chạy một lần | `sudo sysadmin scheduler at "now + 1 hour" "sysadmin monitor report"` |
+| Xem log hệ thống có gì bất thường (24 giờ qua) | `sudo sysadmin monitor logcheck` · `logcheck 1` (1 giờ qua) |
+| Đóng gói log và tải lên Google Drive | `sudo sysadmin monitor log-upload` |
+| Kiểm tra máy chủ có bị tấn công không | `sudo sysadmin alert security` |
+| Chặn / bỏ chặn một IP | `sudo sysadmin alert ban 203.0.113.9` · `alert unban 203.0.113.9` · `alert banned` |
+| Đã sửa cấu hình hợp lệ, IDS báo "file bị thay đổi" | `sudo sysadmin alert baseline` |
+| Xem backup & log trên Google Drive | `sudo sysadmin backup cloud-list` · `backup cloud-status` |
 
 ### 4.3. Định dạng file nhân viên `users.csv`
 ```
@@ -166,6 +174,51 @@ Mật khẩu tạm của từng người được lưu ở `reports/users-create
 Nhân viên phải đổi mật khẩu ở lần đăng nhập đầu tiên.
 
 ---
+
+### 4.4. Kết nối Google Drive (sao lưu & log lên đám mây)
+Toolkit dùng **rclone** với quyền `drive.file`: nó chỉ đọc/ghi được các file do chính nó tạo, không thấy tài liệu khác trong Drive.
+
+1. **Trên laptop có trình duyệt** (Windows/macOS/Linux): cài rclone từ <https://rclone.org/downloads/>, rồi chạy
+   ```bash
+   rclone authorize "drive"
+   ```
+   Trình duyệt mở ra → đăng nhập tài khoản Google của công ty → cho phép. Terminal in ra một chuỗi JSON `{"access_token":...}`, copy cả chuỗi.
+2. **Trên máy chủ** (qua SSH):
+   ```bash
+   sudo sysadmin backup cloud-setup      # tên remote: gdrive, thư mục: TechNova-Server → dán chuỗi token
+   sudo sysadmin backup cloud-status     # kiểm tra: "remote gdrive sẵn sàng", dung lượng Drive
+   ```
+3. Từ giờ:
+   - `backup run` (02:00 mỗi đêm) tự tải `backup-*.tar.gz` + `.sha256` lên `TechNova-Server/<tên máy>/backups/`;
+   - `monitor log-upload` (02:30 mỗi đêm) tải gói log lên `TechNova-Server/<tên máy>/logs/`;
+   - file trên Drive cũ hơn `GDRIVE_KEEP_DAYS` (mặc định 30 ngày) tự bị xoá; tải lên lỗi thì anh Hưng nhận cảnh báo.
+4. Khôi phục từ Drive: tải file về (trình duyệt hoặc `rclone copy gdrive:TechNova-Server/<máy>/backups/<file> /tmp/`), kiểm tra bằng
+   `sha256sum -c <file>.sha256`, rồi `sudo sysadmin backup restore /tmp/<file> /tmp/restore`.
+
+### 4.5. Phát hiện tấn công & cảnh báo qua Telegram / email
+`alert check` (cron mỗi 5 phút) đã gồm phần phát hiện tấn công; chạy riêng bằng `sudo sysadmin alert security`.
+Toolkit phát hiện: dò mật khẩu SSH theo IP, dò tên tài khoản, **đăng nhập thành công ngay sau khi dò** (nghi bị chiếm tài khoản),
+sudo sai nhiều lần, quét cổng, file hệ thống quan trọng bị sửa, tài khoản lạ hoặc có UID 0, cổng mới mở, process chạy từ `/tmp`.
+
+Có dấu hiệu mới thì Telegram và email nhận một tin dạng:
+```
+[TẤN CÔNG] technova-core-srv: 3 dấu hiệu bất thường (1 nghiêm trọng)
+  - [WARN] Dò mật khẩu SSH: 31 lần thất bại từ IP 203.0.113.9 trong 10 phút
+  - [CRITICAL] NGHI BỊ CHIẾM TÀI KHOẢN: annv đăng nhập thành công từ 203.0.113.9 sau 31 lần thất bại
+  - [ĐÃ CHẶN] IP 203.0.113.9 bị chặn tự động bằng tường lửa
+```
+Các tham số trong `config/toolkit.conf`:
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `IDS_WINDOW_MIN` | 10 | Cửa sổ thời gian đọc log (phút) |
+| `IDS_SSH_FAIL_PER_IP` | 5 | Số lần sai mật khẩu từ một IP thì coi là dò mật khẩu |
+| `IDS_SPRAY_USERS` | 5 | Số username không tồn tại bị thử thì coi là dò tên tài khoản |
+| `IDS_SUDO_FAIL` | 3 | Số lần sudo sai của một user |
+| `IDS_SCAN_HITS` | 20 | Số gói bị tường lửa chặn từ một IP thì coi là quét cổng |
+| `AUTO_BAN` | `no` | `yes` = tự chặn IP dò mật khẩu bằng ufw/iptables |
+| `IDS_WHITELIST` | `127.0.0.1 ::1` | IP không bao giờ bị chặn — **thêm IP văn phòng/VPN của anh Hưng trước khi bật AUTO_BAN** |
+| `ALERT_COOLDOWN_MIN` | 30 | Mỗi dấu hiệu chỉ báo lại sau ngần này phút |
 
 ## 5. Demo nhanh 5 phút (sau khi đã SSH vào máy chủ)
 ```bash
@@ -188,4 +241,7 @@ sudo sysadmin --yes users demo-clean; sudo sysadmin scheduler remove   # dọn d
 | Không nhận được email | Chạy lại `alert setup-mail`, kiểm tra Mật khẩu ứng dụng Gmail, xem `logs/msmtp.log` |
 | Không nhận được Telegram | Phải nhắn bot ít nhất một tin trước, kiểm tra chat id, rồi chạy `alert setup-telegram` |
 | Cron không chạy | `sudo systemctl enable --now cron` rồi xem `logs/cron.log` |
+| `Google Drive chưa được kết nối` | Làm lại mục 4.4. Lỗi tải lên ghi ở `logs/rclone.log`; token hết hạn thì chạy lại `rclone authorize "drive"` và `backup cloud-setup` |
+| IDS báo "File quan trọng bị THAY ĐỔI" sau khi chính mình sửa | Thay đổi hợp lệ → `sudo sysadmin alert baseline` |
+| Lỡ tự chặn IP của mình | Vào bằng console/IP khác: `sudo sysadmin alert unban <IP>`, rồi thêm IP vào `IDS_WHITELIST` |
 | SSH vào Docker bị từ chối | Kiểm tra cổng 2222 và `ADMIN_PASSWORD`. Đổi mật khẩu thì cần `docker compose down` rồi `up -d` lại |

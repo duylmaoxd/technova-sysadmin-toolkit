@@ -21,6 +21,8 @@ register_action overview     ""  "Tổng quan máy chủ: CPU, RAM, swap, disk, 
 register_action memory       ""  "Bộ nhớ: free, /proc/meminfo, tiến trình tốn RAM, OOM"
 register_action disk         ""  "Ổ đĩa: dung lượng, inode, I/O (df, iostat), thư mục lớn nhất"
 register_action logs         ""  "Lỗi gần đây trong log (journald, rsyslog, kernel)" "Số dòng=30"
+register_action logcheck     "r" "KIỂM TRA LOG hệ thống: đăng nhập, sudo, tài khoản, lỗi dịch vụ, kernel, tường lửa" "Số giờ gần nhất=$LOGCHECK_HOURS"
+register_action log-upload   "r" "Đóng gói log (kèm báo cáo logcheck) và đưa lên Google Drive" "Số giờ gần nhất=$LOGCHECK_HOURS"
 register_action auth         "r" "Đăng nhập SSH thất bại — phát hiện dò mật khẩu (brute-force)" "Số IP hiển thị=10"
 register_action troubleshoot ""  "Quy trình chẩn đoán sự cố máy chủ tự động (10 bước)"
 register_action report       ""  "Xuất báo cáo hệ thống ra file HTML + TXT"
@@ -193,14 +195,14 @@ monitor_auth() {
     log_warn "Không có log SSH (chưa cài openssh-server, chưa có đăng nhập, hoặc cần quyền root)."
     return 0
   fi
-  fails=$(grep -cE 'Failed password|Invalid user|authentication failure' <<<"$data" || true)
+  fails=$(grep -cE 'Failed [a-z/-]+ for ' <<<"$data" || true)
   header "Đăng nhập SSH thất bại (7 ngày): $fails lần"
   if ((fails > 0)); then
     printf '  %sTop IP thử đăng nhập:%s\n' "$C_BOLD" "$C_RESET"
-    { grep -E 'Failed password|Invalid user' <<<"$data" | grep -oE 'from [0-9a-fA-F:.]+' || true; } | awk '{ print $2 }' |
+    { grep -E 'Failed [a-z/-]+ for ' <<<"$data" | grep -oE 'from [0-9a-fA-F:.]+' || true; } | awk '{ print $2 }' |
       sort | uniq -c | sort -rn | take "$n" | awk '{ printf "    %6d lần  %s\n", $1, $2 }'
     printf '  %sTên đăng nhập bị thử nhiều nhất:%s\n' "$C_BOLD" "$C_RESET"
-    { grep -oE 'Invalid user [^ ]+|Failed password for [^ ]+' <<<"$data" || true; } | awk '{ print $NF }' |
+    { sed -nE 's/.*Failed [a-z/-]+ for (invalid user )?([^ ]+) from .*/\2/p' <<<"$data" || true; } |
       sort | uniq -c | sort -rn | take 5 | awk '{ printf "    %6d lần  %s\n", $1, $2 }'
   fi
   header "Đăng nhập thành công gần đây"
@@ -559,4 +561,141 @@ monitor_kill() {
   if [[ -d /proc/$pid ]]; then status INFO "PID $pid vẫn tồn tại — thử lại với tín hiệu KILL nếu cần"
   else status OK "PID $pid đã kết thúc"; fi
   printf '\n%sTERM = yêu cầu dừng lịch sự (chương trình kịp lưu dữ liệu) · KILL = buộc dừng ngay%s\n' "$C_DIM" "$C_RESET"
+}
+
+# ------------------------------------------------------- KIỂM TRA LOG HỆ THỐNG ---
+# _log_lines <phút> <auth|all> — dòng log trong N phút gần nhất (journald nếu có, không thì /var/log)
+_log_lines() {
+  local min=$1 kind=${2:-all} iso trad d
+  if has journalctl && [[ -d /run/systemd/system ]]; then
+    if [[ $kind == auth ]]; then
+      journalctl --since "-${min}min" --no-pager -q -o short-iso SYSLOG_FACILITY=4 + SYSLOG_FACILITY=10 2>/dev/null || true
+    else
+      journalctl --since "-${min}min" --no-pager -q -o short-iso 2>/dev/null || true
+    fi
+    return 0
+  fi
+  local -a files=(/var/log/auth.log /var/log/secure)
+  [[ $kind == auth ]] || files+=(/var/log/syslog /var/log/messages /var/log/kern.log)
+  # rsyslog ghi thời gian kiểu ISO (2026-10-30T10:15:01) hoặc kiểu cũ (Oct 30 10:15:01)
+  iso=$(date -d "-$min min" '+%Y-%m-%dT%H:%M:%S')
+  trad=$(for ((d = min / 1440; d >= 0; d--)); do LC_ALL=C date -d "-$d day" '+%b %e'; done | paste -sd'|')
+  { cat "${files[@]}" 2>/dev/null || true; } | awk -v iso="$iso" -v trad="$trad" '
+    /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/ { if (substr($0, 1, 19) >= iso) print; next }
+    { n = split(trad, t, "|"); for (i = 1; i <= n; i++) if (substr($0, 1, 6) == t[i]) { print; next } }'
+}
+
+# _grep — grep không làm lỗi pipeline khi không có dòng khớp (an toàn với set -e)
+_grep() { grep "$@" || true; }
+
+# _top <số> — đếm & xếp hạng các dòng giống nhau (dạng "  12  giá trị")
+_top() { sort | uniq -c | sort -rn | take "${1:-5}" | awk '{ c = $1; $1 = ""; printf "        %5d  %s\n", c, substr($0, 2) }'; }
+
+monitor_logcheck() {
+  local hours=${1:-$LOGCHECK_HOURS} auth all n m src
+  is_int "$hours" && ((hours >= 1)) || die "Số giờ phải là số nguyên ≥ 1"
+  ((EUID == 0)) || log_warn "Không phải root — có thể không đọc được log xác thực (auth.log/secure)."
+  status_reset
+  if has journalctl && [[ -d /run/systemd/system ]]; then src="journald"; else src="/var/log (rsyslog)"; fi
+  auth=$(_log_lines $((hours * 60)) auth)
+  all=$(_log_lines $((hours * 60)) all)
+  header "Kiểm tra log $hours giờ qua trên $(hostname) — nguồn: $src"
+  kv "Số dòng log xác thực" "$(grep -c . <<<"$auth" || true)"
+  kv "Số dòng log hệ thống" "$(grep -c . <<<"$all" || true)"
+
+  header "1. Đăng nhập SSH thất bại"
+  n=$(grep -cE 'Failed [a-z/-]+ for ' <<<"$auth" || true)
+  if ((n >= SSH_FAIL_THRESHOLD)); then status WARN "$n lần thất bại — top IP:"; elif ((n > 0)); then status INFO "$n lần thất bại — top IP:"; else status OK "Không có"; fi
+  ((n > 0)) && { _grep -E 'Failed [a-z/-]+ for ' <<<"$auth" | _grep -oE 'from [0-9a-fA-F:.]+' | awk '{ print $2 }' | _top 5; }
+  m=$({ _grep -oE 'Invalid user [^ ]+' <<<"$auth" || true; } | awk '{ print $3 }' | sort -u | grep -c . || true)
+  if ((m >= IDS_SPRAY_USERS)); then status WARN "$m tên đăng nhập KHÔNG tồn tại bị thử (dò tên user):"; { _grep -oE 'Invalid user [^ ]+' <<<"$auth" | awk '{ print $3 }' | _top 5; }; fi
+
+  header "2. Đăng nhập SSH thành công"
+  n=$(grep -cE 'Accepted (password|publickey|keyboard-interactive)' <<<"$auth" || true)
+  status INFO "$n phiên đăng nhập thành công"
+  ((n > 0)) && { _grep -oE 'Accepted [a-z-]+ for [^ ]+ from [0-9a-fA-F:.]+' <<<"$auth" | awk '{ print $4 "@" $6 " (" $2 ")" }' | _top 8; }
+  if grep -qE 'Accepted [a-z-]+ for root ' <<<"$auth"; then status WARN "Có đăng nhập trực tiếp bằng root qua SSH"; else status OK "Không có đăng nhập root qua SSH"; fi
+
+  header "3. Quyền quản trị (sudo / su)"
+  n=$(grep -cE 'sudo(\[[0-9]+\])?: .*COMMAND=' <<<"$auth" || true)
+  status INFO "$n lệnh sudo đã chạy — theo người dùng:"
+  ((n > 0)) && { _grep -E 'sudo(\[[0-9]+\])?: .*COMMAND=' <<<"$auth" | sed -E 's/.*sudo(\[[0-9]+\])?: +([^ ]+) :.*/\2/' | _top 5; }
+  m=$(grep -cE 'sudo.*(incorrect password attempt|authentication failure)|NOT in sudoers' <<<"$auth" || true)
+  if ((m > 0)); then status WARN "$m lần dùng sudo thất bại / không có quyền:"; { _grep -E 'sudo.*(incorrect password|authentication failure)|NOT in sudoers' <<<"$auth" | sed -E 's/.*sudo(\[[0-9]+\])?: +([^ ]+) :.*/\2/; s/.*ruser=([^ ]*).*/\1/' | _top 5; }
+  else status OK "Không có sudo thất bại"; fi
+  m=$(grep -cE 'su(\[[0-9]+\])?: .*(FAILED|authentication failure)' <<<"$auth" || true)
+  ((m == 0)) && status OK "Không có su thất bại" || status WARN "$m lần su thất bại"
+
+  header "4. Thay đổi tài khoản & mật khẩu"
+  n=$(grep -cE 'useradd|userdel|groupadd|groupdel|usermod|password changed|chpasswd|new user' <<<"$auth" || true)
+  if ((n > 0)); then status INFO "$n sự kiện thay đổi tài khoản:"; _grep -oE '(new user|delete user|new group|delete group|password changed for|change user)[^,]*' <<<"$auth" | _top 8
+  else status OK "Không có thay đổi tài khoản"; fi
+
+  header "5. Lỗi dịch vụ"
+  n=$(grep -cE 'Failed to start|failed with result|Main process exited, code=(exited|killed)' <<<"$all" || true)
+  if ((n > 0)); then status WARN "$n lỗi dịch vụ:"; _grep -oE '(Failed to start [^.]+|[A-Za-z0-9@._-]+\.service: Failed with result [^.]+)' <<<"$all" | _top 5
+  else status OK "Không có dịch vụ khởi động lỗi"; fi
+
+  header "6. Kernel: hết RAM, crash, lỗi đĩa"
+  n=$(grep -ciE 'out of memory|oom-kill|oom_reaper' <<<"$all" || true)
+  ((n == 0)) && status OK "Không có sự kiện OOM" || status FAIL "$n sự kiện hết bộ nhớ (OOM killer)"
+  n=$(grep -ciE 'segfault|general protection' <<<"$all" || true)
+  ((n == 0)) && status OK "Không có chương trình bị crash (segfault)" || status WARN "$n lần chương trình crash (segfault)"
+  n=$(grep -ciE 'I/O error|EXT4-fs error|XFS .*error|blk_update_request' <<<"$all" || true)
+  ((n == 0)) && status OK "Không có lỗi I/O ổ đĩa" || status FAIL "$n lỗi I/O ổ đĩa — kiểm tra phần cứng (smartctl)"
+
+  header "7. Tường lửa chặn kết nối"
+  n=$(grep -cE 'UFW BLOCK|IPTABLES.*DROP' <<<"$all" || true)
+  if ((n > 0)); then status INFO "$n gói tin bị chặn — top nguồn:"; _grep -oE 'SRC=[0-9a-fA-F:.]+' <<<"$all" | cut -d= -f2 | _top 5
+  else status OK "Không có (hoặc tường lửa chưa bật ghi log)"; fi
+
+  status_summary
+  printf '\n%sPhát hiện tấn công theo thời gian thực: %s alert security (cron chạy mỗi 5 phút)%s\n' "$C_DIM" "$PROG" "$C_RESET"
+  return 0
+}
+
+monitor_log_upload() {
+  local hours=${1:-$LOGCHECK_HOURS} dir stamp name arch f
+  is_int "$hours" || die "Số giờ không hợp lệ"
+  stamp=$(date +%Y%m%d-%H%M%S)
+  name="logs-$(hostname -s 2>/dev/null || hostname)-$stamp"
+  arch="$BACKUP_DEST/logs/$name.tar.gz"
+  header "Đóng gói log $hours giờ qua → $arch"
+  if [[ $DRY_RUN == 1 ]]; then
+    run tar -czf "$arch" "$name/"
+    cloud_upload "$arch" logs
+    return 0
+  fi
+  tk_mktemp dir -d
+  mkdir -p "$dir/$name" "$BACKUP_DEST/logs"
+  chmod 700 "$BACKUP_DEST" "$BACKUP_DEST/logs" 2>/dev/null || true
+  # 1) báo cáo phân tích log (không màu)
+  (TOOLKIT_COLOR=0; setup_colors; monitor_logcheck "$hours") >"$dir/$name/logcheck-report.txt" 2>&1 || true
+  # 2) log thô trong khoảng thời gian
+  _log_lines $((hours * 60)) all >"$dir/$name/system.log" || true
+  _log_lines $((hours * 60)) auth >"$dir/$name/auth.log" || true
+  # 3) log của toolkit (cảnh báo, cron, số liệu)
+  for f in "$LOG_DIR"/toolkit.log "$LOG_DIR"/alerts.log "$LOG_DIR"/cron.log "$REPORT_DIR"/metrics.csv; do
+    [[ -f $f ]] && cp -p "$f" "$dir/$name/" 2>/dev/null
+  done
+  tar -czf "$arch" -C "$dir" "$name"
+  chmod 600 "$arch"
+  (cd "$BACKUP_DEST/logs" && sha256sum "$name.tar.gz" >"$name.tar.gz.sha256")
+  status OK "Gói log: $(human_bytes "$(stat -c %s "$arch")") — $(tar -tzf "$arch" | grep -c '[^/]$' || true) file"
+  # giữ 14 gói log gần nhất trên máy chủ
+  find "$BACKUP_DEST/logs" -maxdepth 1 -name 'logs-*.tar.gz' -printf '%f\n' | sort -r | awk 'NR > 14' |
+    while read -r f; do rm -f "$BACKUP_DEST/logs/$f" "$BACKUP_DEST/logs/$f.sha256"; done
+  if [[ -n $GDRIVE_REMOTE ]]; then
+    if cloud_upload "$arch" "$arch.sha256" logs; then
+      status OK "Đã tải lên Google Drive: $(cloud_path logs)/$name.tar.gz"
+      cloud_prune logs "$GDRIVE_KEEP_DAYS"
+    else
+      status FAIL "Không tải được gói log lên Google Drive (vẫn còn bản trên máy chủ)"
+      declare -F alert_send >/dev/null && alert_send "[$(hostname)] Không tải được log lên Google Drive" "Gói $name.tar.gz vẫn nằm ở $arch. Xem $LOG_DIR/rclone.log." || true
+    fi
+  else
+    log_info "Chưa cấu hình Google Drive — gói log chỉ lưu trên máy chủ ($(cloud_explain))."
+  fi
+  syslog_event "LOG UPLOAD: $arch"
+  return 0
 }

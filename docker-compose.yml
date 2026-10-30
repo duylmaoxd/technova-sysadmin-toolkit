@@ -18,11 +18,13 @@ services:
       - "2222:22"
     cap_add:
       - SYS_NICE        # cho phép "monitor renice" hạ ưu tiên process của nhân viên
+      - NET_ADMIN       # cho phép "alert ban" chặn IP tấn công bằng iptables
     volumes:
       - tk-backups:/var/backups/sysadmin-toolkit
       - tk-config:/opt/sysadmin-toolkit/config
       - tk-reports:/opt/sysadmin-toolkit/reports
       - tk-logs:/opt/sysadmin-toolkit/logs
+      - tk-rclone:/root/.config/rclone     # cấu hình Google Drive (rclone) không mất khi tạo lại container
     restart: unless-stopped
 
 volumes:
@@ -30,3 +32,4 @@ volumes:
   tk-config:
   tk-reports:
   tk-logs:
+  tk-rclone:

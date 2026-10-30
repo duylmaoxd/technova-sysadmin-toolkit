@@ -10,7 +10,8 @@ set -euo pipefail
 ADMIN_USER=${ADMIN_USER:-hung}
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
 
-# Dịch vụ nền
+# Dịch vụ nền: rsyslog (ghi /var/log/auth.log, syslog), cron, atd
+rsyslogd 2>/dev/null || true
 cron
 atd 2>/dev/null || true
 
@@ -31,6 +32,7 @@ if (($# == 0)); then
   ssh-keygen -A >/dev/null
   echo "[entrypoint] technova-core-srv sẵn sàng — SSH vào cổng 22 của container."
   [[ -n $ADMIN_PASSWORD ]] || echo "[entrypoint] Chưa đặt ADMIN_PASSWORD → dùng: docker exec -it <container> sysadmin"
-  exec /usr/sbin/sshd -D -e
+  # không dùng -e: để sshd ghi log vào syslog → /var/log/auth.log (cần cho phát hiện tấn công)
+  exec /usr/sbin/sshd -D
 fi
 exec "$@"

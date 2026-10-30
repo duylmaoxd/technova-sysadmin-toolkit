@@ -18,6 +18,10 @@ register_action verify  ""   "Kiểm tra tính toàn vẹn (checksum + đọc th
 register_action restore "rd" "Khôi phục bản sao lưu ra một thư mục" "File sao lưu=@_pick_backup" "Giải nén vào thư mục=/tmp/restore"
 register_action rotate  "rd" "Xoá bớt bản cũ, chỉ giữ N bản mới nhất" "Số bản giữ lại=$BACKUP_KEEP" "Thư mục lưu bản sao=$BACKUP_DEST"
 register_action history ""   "Lịch sử các lần sao lưu" "Số dòng=20"
+register_action cloud-setup  "i"  "Kết nối Google Drive (rclone) để tự đưa backup & log lên đám mây" "Tên remote rclone=gdrive" "Thư mục trên Drive=TechNova-Server"
+register_action cloud-status ""   "Trạng thái kết nối Google Drive & dung lượng còn trống"
+register_action upload       "r"  "Tải một bản sao lưu lên Google Drive" "File sao lưu=@_pick_backup"
+register_action cloud-list   ""   "Danh sách bản sao lưu & gói log đang có trên Google Drive"
 
 _backup_host() { hostname -s 2>/dev/null || hostname; }
 
@@ -125,6 +129,18 @@ backup_run() {
       _log_write ERROR "rsync: $(tail -n 3 "$errlog" | tr '\n' ' ')"
     fi
   fi
+  # Đưa bản sao lưu lên Google Drive (nếu đã cấu hình GDRIVE_REMOTE) — bản sao "offsite" trên đám mây
+  if [[ -n $GDRIVE_REMOTE ]]; then
+    if cloud_upload "$file" "$file.sha256" backups; then
+      status OK "Đã tải lên Google Drive: $(cloud_path backups)/$name"
+      cloud_prune backups "$GDRIVE_KEEP_DAYS"
+    else
+      status FAIL "Không tải được lên Google Drive — bản sao vẫn còn trên máy chủ"
+      if declare -F alert_send >/dev/null; then
+        alert_send "[$(_backup_host)] Không tải được backup lên Google Drive" "Bản sao lưu $name đã tạo trên máy chủ nhưng tải lên $(cloud_path backups) thất bại. Xem $LOG_DIR/rclone.log." || true
+      fi
+    fi
+  fi
   _backup_record "$file" "$size" $((SECONDS - t0)) OK
   syslog_event "BACKUP OK: $file ($size)"
   log_ok "Sao lưu hoàn tất."
@@ -212,4 +228,72 @@ backup_history() {
   header "Lịch sử sao lưu ($hist)"
   [[ -f $hist ]] || { log_warn "Chưa có lịch sử sao lưu."; return 0; }
   { head -n 1 "$hist"; tail -n +2 "$hist" | tail -n "$n"; } | table , || tail -n "$n" "$hist"
+}
+
+# ------------------------------------------------------------ GOOGLE DRIVE ---
+backup_cloud_setup() {
+  local remote=${1:-gdrive} folder=${2:-TechNova-Server} token
+  [[ $remote =~ ^[A-Za-z0-9_-]+$ ]] || die "Tên remote chỉ gồm chữ, số, - và _"
+  need_cmd rclone rclone || return 1
+  header "Kết nối Google Drive cho $(hostname)"
+  if rclone listremotes 2>/dev/null | grep -qx "$remote:"; then
+    status OK "Đã có remote rclone '$remote'"
+  else
+    cat <<EOF
+  Máy chủ không có trình duyệt, nên cấp quyền Google Drive theo 2 bước:
+    1) Trên máy tính CÓ trình duyệt (đã cài rclone), chạy:
+         rclone authorize "drive"
+       → đăng nhập Google, bấm "Cho phép", terminal in ra một chuỗi JSON {"access_token":...}
+    2) Dán chuỗi JSON đó vào đây (Enter để kết thúc).
+EOF
+    read -r -p "  Token JSON: " token </dev/tty || die "Đã huỷ."
+    [[ $token == *access_token* && $token == *refresh_token* ]] || die "Token không đúng định dạng (cần có access_token và refresh_token)."
+    # scope=drive.file: toolkit chỉ thấy/sửa được file do chính nó tạo ra trên Drive
+    run rclone config create "$remote" drive scope=drive.file token="$token" config_is_local=false >/dev/null
+    status OK "Đã tạo remote rclone '$remote' (lưu trong $(rclone config file 2>/dev/null | tail -n 1))"
+  fi
+  config_set GDRIVE_REMOTE "$remote:$folder"
+  [[ $DRY_RUN == 1 ]] && return 0
+  log_info "Thử tải một file lên Drive..."
+  local probe
+  tk_mktemp probe
+  printf 'Kết nối từ %s lúc %s\n' "$(hostname)" "$(date '+%F %T')" >"$probe"
+  mv "$probe" "$probe.txt" && TK_TMP_FILES+=("$probe.txt")
+  if cloud_upload "$probe.txt" backups; then
+    rclone deletefile "$(cloud_path backups)/$(basename "$probe.txt")" 2>/dev/null || true
+    log_ok "Google Drive hoạt động. Từ giờ 'backup run' và 'monitor log-upload' sẽ tự đưa dữ liệu lên $(cloud_path '')"
+  else
+    die "Không ghi được lên Google Drive — kiểm tra lại token/kết nối mạng."
+  fi
+}
+
+backup_cloud_status() {
+  header "Google Drive"
+  kv "GDRIVE_REMOTE" "${GDRIVE_REMOTE:-(chưa đặt)}"
+  if ! cloud_ready; then status WARN "Chưa dùng được: $(cloud_explain)"; return 0; fi
+  status OK "rclone $(rclone version 2>/dev/null | awk 'NR == 1 { print $2 }') · remote ${GDRIVE_REMOTE%%:*} sẵn sàng"
+  kv "Thư mục backup" "$(cloud_path backups)"
+  kv "Thư mục log" "$(cloud_path logs)"
+  kv "Giữ trên Drive" "$GDRIVE_KEEP_DAYS ngày (0 = giữ hết)"
+  local about
+  about=$(rclone about "${GDRIVE_REMOTE%%:*}:" 2>/dev/null || true)
+  [[ -n $about ]] && sed 's/^/  /' <<<"$about"
+  return 0
+}
+
+backup_upload() {
+  local file=$1
+  [[ -f $file ]] || die "Không tìm thấy file: $file"
+  header "Tải $(basename "$file") lên Google Drive"
+  local -a files=("$file")
+  [[ -f $file.sha256 ]] && files+=("$file.sha256")
+  cloud_upload "${files[@]}" backups || return 1
+  [[ $DRY_RUN == 1 ]] || log_ok "Đã tải lên $(cloud_path backups)/"
+}
+
+backup_cloud_list() {
+  header "Bản sao lưu trên Google Drive — $(cloud_path backups)"
+  cloud_list backups || return 0
+  header "Gói log trên Google Drive — $(cloud_path logs)"
+  cloud_list logs || true
 }
