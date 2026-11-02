@@ -289,6 +289,7 @@ sudo sysadmin --yes users demo-clean; sudo sysadmin scheduler remove   # dọn d
 | Không nhận được Telegram | Phải nhắn bot ít nhất một tin trước, kiểm tra chat id, rồi chạy `alert setup-telegram` |
 | Cron không chạy | `sudo systemctl enable --now cron` rồi xem `logs/cron.log` |
 | `Google Drive chưa được kết nối` | Làm lại mục 4.4. Lỗi tải lên ghi ở `logs/rclone.log`; token hết hạn thì chạy lại `rclone authorize "drive"` và `backup cloud-setup` |
+| `logcheck` có mục "Phiên đăng nhập không khởi động được" (`user@UID`) | Không phải lỗi máy chủ: tài khoản đó đăng nhập khi đang bị khoá/hết hạn hoặc chưa đổi mật khẩu tạm. Toolkit ghi rõ tên và lý do; lỗi ứng dụng giao diện GNOME/xdg-portal của phiên người dùng không được tính |
 | IDS báo "File quan trọng bị THAY ĐỔI" sau khi chính mình sửa | Thay đổi hợp lệ → `sudo sysadmin alert baseline` |
 | Lỡ tự chặn IP của mình | Vào bằng console/IP khác: `sudo sysadmin alert unban <IP>`, rồi thêm IP vào `IDS_WHITELIST` |
 | SSH vào Docker bị từ chối | Kiểm tra cổng 2222 và `ADMIN_PASSWORD`. Đổi mật khẩu thì cần `docker compose down` rồi `up -d` lại |

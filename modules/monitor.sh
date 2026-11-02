@@ -81,11 +81,30 @@ inode_usage() {
 
 _cpu_snapshot() { awk '/^cpu/ { t = 0; for (i = 2; i <= 9; i++) t += $i; print $1, t, $5 + $6 }' /proc/stat; }
 _zombies() { ps -e -o stat= | awk '/^Z/ { z++ } END { print z + 0 }'; }
-_failed_units() {
+# Dịch vụ HỆ THỐNG bị lỗi. Bỏ qua user@UID.service / user-runtime-dir@UID.service: đó là phiên đăng nhập
+# của từng tài khoản (thường lỗi khi tài khoản bị khoá, hết hạn hoặc chưa đổi mật khẩu tạm), không phải dịch vụ máy chủ.
+_failed_unit_names() {
   if has systemctl && [[ -d /run/systemd/system ]]; then
-    { systemctl --failed --no-legend --plain 2>/dev/null || true; } | wc -l
+    { systemctl --failed --no-legend --plain 2>/dev/null || true; } | awk '$1 !~ /^user(-runtime-dir)?@[0-9]+\.service$/ { print $1 }'
+  fi
+  return 0
+}
+_failed_units() { _failed_unit_names | grep -c . || true; }
+
+# _uid_note <UID> — "tên (tình trạng tài khoản)" để giải thích lỗi phiên đăng nhập của tài khoản đó
+_uid_note() {
+  local name st info exp
+  name=$(getent passwd "$1" | cut -d: -f1)
+  [[ -n $name ]] || { printf 'UID %s (tài khoản không còn tồn tại)' "$1"; return 0; }
+  st=$({ passwd -S "$name" 2>/dev/null || true; } | awk '{ print $2 }')
+  info=$(LC_ALL=C chage -l "$name" 2>/dev/null || true)
+  exp=$(awk -F': ' '/^Account expires/ { print $2 }' <<<"$info")
+  if [[ $st == L* ]] || { [[ -n $exp && $exp != never ]] && (($(date -d "$exp" +%s 2>/dev/null || echo 0) < $(date +%s))); }; then
+    printf '%s (UID %s) — tài khoản đã bị khoá/hết hạn, bình thường với nhân viên đã nghỉ việc' "$name" "$1"
+  elif grep -q 'password must be changed' <<<"$info"; then
+    printf '%s (UID %s) — chưa đổi mật khẩu tạm lần đầu' "$name" "$1"
   else
-    echo 0
+    printf '%s (UID %s) — xem: journalctl -u user@%s' "$name" "$1" "$1"
   fi
 }
 
@@ -272,7 +291,7 @@ EOF
   n=$(_failed_units)
   if ((n > 0)); then
     status FAIL "$n unit bị lỗi:"
-    { systemctl --failed --no-legend --plain 2>/dev/null || true; } | awk '{ print "        " $1 }'
+    _failed_unit_names | awk '{ print "        " $1 }'
     tips+=("Dịch vụ lỗi: systemctl status <unit> và journalctl -u <unit> -b để xem nguyên nhân.")
   else status OK "Không có unit bị lỗi"; fi
 
@@ -573,7 +592,8 @@ _log_lines() {
     if [[ $kind == auth ]]; then
       journalctl --since "-${min}min" --no-pager -q -o short-iso SYSLOG_FACILITY=4 + SYSLOG_FACILITY=10 2>/dev/null || true
     else
-      journalctl --since "-${min}min" --no-pager -q -o short-iso 2>/dev/null || true
+      # --system: chỉ nhật ký hệ thống (bỏ nhật ký riêng của phiên người dùng: ứng dụng GNOME, xdg-portal...)
+      journalctl --system --since "-${min}min" --no-pager -q -o short-iso 2>/dev/null || true
     fi
     return 0
   fi
@@ -636,9 +656,18 @@ monitor_logcheck() {
   else status OK "Không có thay đổi tài khoản"; fi
 
   header "5. Lỗi dịch vụ"
-  n=$(grep -cE 'Failed to start|failed with result|Main process exited, code=(exited|killed)' <<<"$all" || true)
-  if ((n > 0)); then status WARN "$n lỗi dịch vụ:"; _grep -oE '(Failed to start [^.]+|[A-Za-z0-9@._-]+\.service: Failed with result [^.]+)' <<<"$all" | _top 5
+  # Chỉ tính dịch vụ của máy chủ; lỗi phiên đăng nhập của từng tài khoản (user@UID) tách riêng
+  local svc ses uid
+  svc=$({ _grep -vE 'user(-runtime-dir)?@[0-9]+\.service|User (Manager|Runtime Directory) for UID' <<<"$all" || true; } |
+    _grep -oE '(Failed to start [^.]+|[A-Za-z0-9@._-]+\.service: Failed with result [^.]+)')
+  n=$(grep -c . <<<"$svc" || true)
+  if ((n > 0)); then status WARN "$n lỗi dịch vụ:"; _top 5 <<<"$svc"
   else status OK "Không có dịch vụ khởi động lỗi"; fi
+  ses=$({ _grep -oE 'user@[0-9]+\.service: Failed|User Manager for UID [0-9]+' <<<"$all" || true; } | grep -oE '[0-9]+(\.service)?' | grep -oE '^[0-9]+' | sort -un)
+  if [[ -n $ses ]]; then
+    status INFO "Phiên đăng nhập không khởi động được (không phải lỗi máy chủ):"
+    for uid in $ses; do printf '           %s\n' "$(_uid_note "$uid")"; done
+  fi
 
   header "6. Kernel: hết RAM, crash, lỗi đĩa"
   n=$(grep -ciE 'out of memory|oom-kill|oom_reaper' <<<"$all" || true)

@@ -241,7 +241,7 @@ alert_check() {
   local failed
   failed=$(_failed_units)
   if ((failed > 0)); then
-    issue units "$failed dịch vụ systemd bị lỗi: $({ systemctl --failed --no-legend --plain 2>/dev/null || true; } | awk '{ printf "%s ", $1 }')"
+    issue units "$failed dịch vụ systemd bị lỗi: $(_failed_unit_names | paste -sd' ' -)"
   fi
   [[ $DRY_RUN == 1 ]] || _alert_metrics "$CPU_PCT" "$MEM_PCT" "$SWAP_PCT" "$disk_max" "$load"
 
