@@ -39,7 +39,7 @@ tạo lệnh `sysadmin`, rồi hỏi vài câu (Enter = giữ mặc định):
 | Tự động chặn IP dò mật khẩu? | `y` | `AUTO_BAN=yes` |
 | Siết SSH? | `y` | Cấm root đăng nhập trực tiếp, tối đa 4 lần thử mỗi kết nối (`/etc/ssh/sshd_config.d/10-technova.conf`) |
 | Laptop: gập máy vẫn chạy? | `y` | Chỉ hỏi trên laptop; có hiệu lực sau lần khởi động lại |
-| Lập lịch bằng `timer` hay `cron` | `timer` | 4 systemd timer: kiểm tra + IDS mỗi 5 phút, sao lưu + log 02:00, bảo dưỡng 03:30, báo cáo 07:00 thứ Hai |
+| Lập lịch bằng `timer` hay `cron` | `timer` | Dịch vụ nền `toolkit-ids` (phát hiện tấn công thời gian thực) + 4 systemd timer: kiểm tra mỗi phút, sao lưu + log 02:00, bảo dưỡng 03:30, báo cáo 07:00 thứ Hai |
 
 Cuối cùng toolkit chụp **trạng thái chuẩn** cho hệ thống phát hiện tấn công.
 Muốn nhận hết mặc định mà không hỏi: `sudo ./install.sh --server --yes`.
@@ -96,7 +96,7 @@ sudo ./install.sh --uninstall          # các bản sao lưu trong /var/backups/
 ## 2. Cách B — Docker (thử nhanh và kiểm thử tự động)
 
 > Container **không phải máy chủ thật**: nó chỉ thấy user, process và log bên trong chính nó, không có systemd.
-> Dùng Docker để thử toolkit trong vài phút, chạy bộ 75 test tự động, hoặc làm phương án dự phòng khi demo.
+> Dùng Docker để thử toolkit trong vài phút, chạy bộ 83 test tự động, hoặc làm phương án dự phòng khi demo.
 
 ### Bước 1: Cài Docker trên máy của bạn
 ```bash
@@ -234,7 +234,11 @@ Toolkit dùng **rclone** với quyền `drive.file`: nó chỉ đọc/ghi đư�
    `sha256sum -c <file>.sha256`, rồi `sudo sysadmin backup restore /tmp/<file> /tmp/restore`.
 
 ### 4.5. Phát hiện tấn công & cảnh báo qua Telegram / email
-`alert check` (cron mỗi 5 phút) đã gồm phần phát hiện tấn công; chạy riêng bằng `sudo sysadmin alert security`.
+- **Thời gian thực:** dịch vụ nền `toolkit-ids` (`alert watch`) đọc log liên tục, chặn IP và gửi tin trong vài giây.
+  Xem trực tiếp: `sudo journalctl -u toolkit-ids -f`, hoặc chạy tay `sudo sysadmin alert watch` (Ctrl+C để dừng).
+- **Mỗi phút:** `alert check` kiểm tra thêm file hệ thống, tài khoản lạ, cổng mới, process độc hại; chạy riêng bằng `sudo sysadmin alert security`.
+- **Bỏ chặn:** `alert unban <IP>` chỉ tính các lần thử *sau* lúc bỏ chặn, nên IP không bị chặn lại oan; nếu tấn công tiếp thì bị chặn ngay, báo **IP TÁI PHẠM**.
+
 Toolkit phát hiện: dò mật khẩu SSH theo IP (kể cả khi máy chỉ cho đăng nhập bằng key — bot chỉ để lại dòng `Invalid user`/`[preauth]`), dò tên tài khoản, **đăng nhập thành công ngay sau khi dò** (nghi bị chiếm tài khoản),
 sudo sai nhiều lần, quét cổng, file hệ thống quan trọng bị sửa, tài khoản lạ hoặc có UID 0, cổng mới mở, process chạy từ `/tmp`.
 
@@ -256,7 +260,12 @@ Các tham số trong `config/toolkit.conf`:
 | `IDS_SCAN_HITS` | 20 | Số gói bị tường lửa chặn từ một IP thì coi là quét cổng |
 | `AUTO_BAN` | `no` | `yes` = tự chặn IP dò mật khẩu bằng ufw/iptables |
 | `IDS_WHITELIST` | `127.0.0.1 ::1` | IP hoặc dải mạng (vd. `192.168.1.0/24`) không bao giờ bị chặn — **thêm IP văn phòng/VPN của anh Hưng trước khi bật AUTO_BAN** |
-| `ALERT_COOLDOWN_MIN` | 30 | Mỗi dấu hiệu chỉ báo lại sau ngần này phút |
+| `IDS_COMPROMISE_FAILS` | 3 | Vào được sau ít nhất ngần này lần sai từ cùng IP → nghi bị chiếm tài khoản (gõ nhầm 1–2 lần không tính) |
+| `ALERT_BATCH_SEC` | 5 | Gộp các sự kiện trong ngần này giây thành một tin |
+| `ALERT_ESCALATE` | 2 | Dấu hiệu đã báo chỉ báo lại khi nặng gấp ngần này lần (vd 5 → 10 lần dò) |
+| `ALERT_REPEAT_MIN` | 30 | ...hoặc khi vẫn còn sau ngần này phút (nhắc lại) |
+| `ALERT_RATE_MAX` | 6 | Tối đa ngần này tin / 10 phút; vượt thì gộp vào tin sau (CRITICAL luôn gửi) |
+| `ALERT_CONFIRM` | 2 | CPU/RAM phải vượt ngưỡng ngần này lần kiểm tra liên tiếp mới báo |
 
 ## 5. Demo nhanh 5 phút (sau khi đã SSH vào máy chủ)
 ```bash

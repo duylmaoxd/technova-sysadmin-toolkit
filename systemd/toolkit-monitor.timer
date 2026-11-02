@@ -1,11 +1,11 @@
 # Tạo bởi LinuxAdmin Toolkit — chạy toolkit-monitor.service định kỳ
 [Unit]
-Description=LinuxAdmin Toolkit: kiểm tra tài nguyên mỗi 5 phút
+Description=LinuxAdmin Toolkit: kiểm tra tài nguyên & bảo mật mỗi phút
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=5min
-AccuracySec=30s
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
 Unit=toolkit-monitor.service
 
 [Install]

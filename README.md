@@ -26,7 +26,7 @@ Toolkit gom các công việc hằng ngày của anh vào **5 chức năng chín
 |---|---|
 | Báo cáo (LaTeX → PDF, 16 trang) | [docs/bao-cao/bao-cao.pdf](docs/bao-cao/bao-cao.pdf) · mã nguồn `bao-cao.tex` · biên dịch lại bằng `docs/bao-cao/build.sh` · **phần cần bổ sung (ảnh demo, số liệu): [docs/bao-cao/CAN-BO-SUNG.md](docs/bao-cao/CAN-BO-SUNG.md)** |
 | Slide thuyết trình (16 slide, có ghi chú thuyết trình) | [docs/thuyet-trinh/LinuxAdmin-Toolkit-TechNova.pptx](docs/thuyet-trinh/LinuxAdmin-Toolkit-TechNova.pptx) |
-| Kịch bản demo trên máy thật & danh sách 75 test | [docs/KICH-BAN-DEMO.md](docs/KICH-BAN-DEMO.md) · script `tests/demo-test.sh` |
+| Kịch bản demo trên máy thật & danh sách 83 test | [docs/KICH-BAN-DEMO.md](docs/KICH-BAN-DEMO.md) · script `tests/demo-test.sh` |
 | Hướng dẫn sử dụng | [HUONG-DAN-SU-DUNG.md](HUONG-DAN-SU-DUNG.md) |
 
 ## 1. Cài đặt & chạy trên máy Linux khác
@@ -46,12 +46,12 @@ Chi tiết từng câu hỏi của `--server`, Tailscale và lưu ý khi dùng m
 
 ### Cách B — Docker: thử nhanh và kiểm thử tự động
 Container **không phải máy chủ thật** (chỉ thấy user/process/log bên trong nó, không có systemd). Dùng để thử trong vài phút,
-chạy 75 test tự động, hoặc dự phòng khi demo.
+chạy 83 test tự động, hoặc dự phòng khi demo.
 ```bash
 docker compose up -d --build          # Ubuntu 24.04 + toolkit + cron/at + SSH server
 ssh -p 2222 hung@localhost            # mật khẩu: ADMIN_PASSWORD trong docker-compose.yml (nhớ đổi)
 docker run --rm --cap-add SYS_NICE --cap-add NET_ADMIN -v "$PWD/tests:/tests:ro" \
-  technova/sysadmin-toolkit:1.0 bash /tests/demo-test.sh --yes      # 75/75 PASS
+  technova/sysadmin-toolkit:1.0 bash /tests/demo-test.sh --yes      # 83/83 PASS
 ```
 
 ### Cách C — Chạy tại chỗ, không cài
@@ -119,12 +119,11 @@ Phòng ban tương ứng với nhóm Linux: `dev` (lập trình viên), `data` (
 | **`log-upload`** | Đóng gói báo cáo logcheck + `syslog` + `auth.log` + log của toolkit thành `logs-<máy>-<thời điểm>.tar.gz` (kèm SHA-256), giữ 14 gói tại chỗ và **tải lên Google Drive** |
 
 ### 3.3. `alert` — Cảnh báo sự cố tức thời
-`alert check` chạy **mỗi 5 phút** (qua cron hoặc systemd timer) và kiểm tra:
-- **CPU, RAM và ổ đĩa** có vượt ngưỡng không;
-- **process ngốn tài nguyên**, kèm tên nhân viên và lệnh đang chạy;
-- **dịch vụ systemd** có bị chết không;
-- **đăng nhập SSH thất bại** ≥ 10 lần trong 10 phút (nghi bị dò mật khẩu);
-- **dấu hiệu tấn công** (chạy `alert security`, xem bên dưới).
+Cảnh báo chạy ở hai tầng:
+- **Thời gian thực — `alert watch`** (dịch vụ nền `toolkit-ids`): đọc log xác thực **liên tục**, phát hiện dò mật khẩu,
+  chiếm tài khoản, sudo trái phép và **chặn IP trong khoảng 1 giây** — không chờ lịch kiểm tra. Xem trực tiếp: `sudo journalctl -u toolkit-ids -f`.
+- **Mỗi phút — `alert check`** (timer): CPU, RAM, ổ đĩa, process ngốn tài nguyên kèm tên nhân viên, dịch vụ systemd chết,
+  và các kiểm tra so với trạng thái chuẩn (file hệ thống, tài khoản lạ, cổng mới, process độc hại).
 
 **Phát hiện tấn công bất thường (IDS) — `alert security`.** Toolkit đọc log trong cửa sổ trượt 10 phút
 (`IDS_WINDOW_MIN`) và so sánh với một **trạng thái chuẩn** (baseline) đã chụp trước. Có 9 phép kiểm tra:
@@ -141,18 +140,27 @@ Phòng ban tương ứng với nhóm Linux: `dev` (lập trình viên), `data` (
 | 8 | Cổng mạng mới mở (backdoor đang lắng nghe) | WARN |
 | 9 | Process chạy từ `/tmp`, `/var/tmp`, `/dev/shm` (kiểu mã độc đào coin) | CRITICAL |
 
-Có dấu hiệu mới thì toolkit gửi **một tin "[TẤN CÔNG]"** qua **Telegram và email**, kèm gợi ý xử lý.
-Mỗi dấu hiệu chỉ báo một lần trong 30 phút. Nếu bật `AUTO_BAN="yes"`, IP dò mật khẩu bị **chặn tự động**
-bằng `ufw` hoặc `iptables` (trừ các IP/dải mạng trong `IDS_WHITELIST`, ví dụ `192.168.1.0/24`). Khi anh Hưng tự tạo user bằng toolkit,
-baseline được cập nhật tự động nên không báo nhầm. Sau khi sửa cấu hình hợp lệ bằng tay, chạy `alert baseline`.
+Có dấu hiệu mới thì toolkit gửi tin **"[TẤN CÔNG]"** qua **Telegram và email**, kèm gợi ý xử lý. Nếu bật `AUTO_BAN="yes"`,
+IP dò mật khẩu bị **chặn tự động** bằng `ufw` hoặc `iptables` (trừ các IP/dải mạng trong `IDS_WHITELIST`, ví dụ `192.168.1.0/24`).
+Khi anh Hưng tự tạo user bằng toolkit, baseline được cập nhật tự động nên không báo nhầm. Sau khi sửa cấu hình hợp lệ bằng tay, chạy `alert baseline`.
 
-Cách gửi cảnh báo:
-- Gửi qua **email** (msmtp, Gmail App Password) và **Telegram** (nhận ngay trên điện thoại).
-- Có **cooldown 30 phút** để không spam lúc nửa đêm.
-- Hết sự cố thì tự gửi tin **"đã ổn định"**.
+**Bỏ chặn và IP tái phạm:** `alert unban <IP>` ghi lại mốc bỏ chặn — các lần thử *trước* mốc đó không còn được tính, nên IP không bị chặn lại oan.
+Nếu IP đó tấn công tiếp, nó bị chặn lại ngay và được báo mức **CRITICAL "IP TÁI PHẠM"**.
+
+**Chống spam** (đều chỉnh được trong `toolkit.conf`):
+| Cơ chế | Mặc định |
+|---|---|
+| Gộp các sự kiện xảy ra gần nhau thành **một tin** | trong `ALERT_BATCH_SEC=5` giây |
+| Dấu hiệu đã báo chỉ báo lại khi **nặng thêm** (ví dụ 5 → 10 lần dò, hoặc WARN → CRITICAL) | `ALERT_ESCALATE=2` |
+| ...hoặc khi **vẫn còn** sau một khoảng thời gian (nhắc lại), tin ghi rõ "đã gộp N lần lặp lại" | `ALERT_REPEAT_MIN=30` phút |
+| Giới hạn số tin; vượt thì gộp vào tin sau (tin CRITICAL luôn được gửi) | `ALERT_RATE_MAX=6` tin / 10 phút |
+| CPU/RAM phải vượt ngưỡng nhiều lần liên tiếp mới báo (bỏ qua tăng vọt chốc lát) | `ALERT_CONFIRM=2` lần |
+| Không báo thêm về IP đã bị chặn; gõ sai mật khẩu 1–2 lần rồi vào được không bị coi là bị chiếm tài khoản | `IDS_COMPROMISE_FAILS=3` |
+
+Hết sự cố tài nguyên thì tự gửi tin **"đã ổn định"**.
 
 Các lệnh liên quan: `setup-telegram` · `setup-mail` · `test` · `status` · `set-threshold CPU|MEM|DISK|HOG_CPU|HOG_MEM <%>` ·
-**`stress [giây]`** (tạo tải giả để demo cảnh báo) · `history` · **`security`** · `baseline` · **`ban <IP>`** · `unban <IP>` · `banned`.
+**`stress [giây]`** (tạo tải giả để demo cảnh báo) · `history` · **`watch`** · **`security`** · `baseline` · **`ban <IP>`** · `unban <IP>` · `banned`.
 
 ### 3.4. `backup` — Sao lưu an toàn tài sản số
 Mặc định sao lưu `/srv/technova` (dự án), `/home` (nhân viên) và `/etc` (cấu hình). Một lần `backup run` gồm các bước:
@@ -181,12 +189,13 @@ Các lệnh khác: `list` · `verify <file>` · `restore <file> [thư mục]` ·
 | 02:00 hằng ngày | `backup run` — sao lưu (và tải lên Google Drive) |
 | 02:30 hằng ngày | `monitor log-upload` — kiểm tra log, đóng gói và tải lên Google Drive |
 | 03:30 hằng ngày | **`scheduler maintenance`**: dọn file tạm cũ trong /tmp và /var/tmp, giữ log journald 30 ngày, dọn cache gói, xoá core dump, xoay vòng backup, báo nếu máy cần khởi động lại |
-| mỗi 5 phút | `alert check` — phát hiện sự cố **và tấn công**, cảnh báo qua Telegram/email |
+| mỗi phút | `alert check` — phát hiện sự cố **và tấn công**, cảnh báo qua Telegram/email |
 | 07:00 thứ Hai | `monitor report` — báo cáo tuần |
 
 Các lệnh khác: `list` · `remove` · `add "<lịch>" "<lệnh>"` · **`explain "<biểu thức cron>"`** (giải thích bằng tiếng Việt) ·
-`at` / `at-list` / `at-remove` (hẹn chạy một lần) · `log` · `timers-install` / `timers-remove`: 4 systemd timer
-(`toolkit-monitor`, `toolkit-backup`, `toolkit-maintenance`, `toolkit-report`) thay cho cron — đây là phần "tạo service riêng" của đề tài systemd.
+`at` / `at-list` / `at-remove` (hẹn chạy một lần) · `log` · `timers-install` / `timers-remove`: dịch vụ nền `toolkit-ids`
+(phát hiện tấn công thời gian thực) và 4 systemd timer (`toolkit-monitor`, `toolkit-backup`, `toolkit-maintenance`, `toolkit-report`)
+thay cho cron — đây là phần "tạo service riêng" của đề tài systemd.
 
 ---
 
@@ -225,7 +234,7 @@ sysadmin-toolkit/
 ├── config/
 │   ├── toolkit.conf     # tên công ty, phòng ban, ngưỡng, lịch cron, email/Telegram...
 │   └── users.csv        # danh sách nhân viên TechNova
-├── systemd/             # mẫu .service/.timer (cảnh báo 5 phút, sao lưu 02:00)
+├── systemd/             # mẫu .service/.timer: toolkit-ids (thời gian thực), kiểm tra mỗi phút, sao lưu 02:00...
 ├── Dockerfile · docker-compose.yml · docker/entrypoint.sh   # đóng gói thành máy chủ technova-core-srv
 ├── package.sh           # đóng gói file .tar.gz để mang sang máy khác
 ├── HUONG-DAN-SU-DUNG.md # hướng dẫn sử dụng chi tiết
@@ -278,7 +287,7 @@ Mỗi chức năng **tự khai báo** các action của nó (`register_module`, 
 - **Docker**: build image, `docker compose up`, SSH vào cổng 2222 bằng tài khoản `hung`, rồi chạy `users create`, `monitor who`, `backup run` đều thành công.
 - **Máy Ubuntu 24.04 có systemd thật** (PID 1, journald, ssh.service): `install.sh --server` chạy trọn vẹn; 4 timer tự kích hoạt đúng lịch;
   IDS đọc journald, bắt dò mật khẩu cả kiểu có mật khẩu lẫn kiểu chỉ-key, tự chặn IP bằng iptables.
-- **Kiểm thử tự động** `tests/demo-test.sh` trong container: **75/75 PASS**, gồm cả mô phỏng tấn công (dò mật khẩu, password spraying,
+- **Kiểm thử tự động** `tests/demo-test.sh` trong container: **83/83 PASS** (gồm chặn IP thời gian thực, leo thang, gộp tin, unban/IP tái phạm), gồm cả mô phỏng tấn công (dò mật khẩu, password spraying,
   đăng nhập sau khi dò, tạo user UID 0, chạy file từ /tmp), chặn/bỏ chặn IP bằng iptables, và tải backup + log lên một
   "Google Drive" giả lập (remote rclone kiểu local).
 - **Gửi cảnh báo** được kiểm chứng bằng máy chủ Telegram API và SMTP giả lập: tin "[TẤN CÔNG]" liệt kê đủ 11 dấu hiệu, tới được cả hai kênh.

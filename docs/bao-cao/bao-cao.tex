@@ -132,7 +132,7 @@ Phù hợp doanh nghiệp nhỏ có vài máy chủ Linux nhưng không có đ�
   \item Khoảng \textbf{4.370 dòng Bash}, \textbf{71 lệnh}, chia thành \textbf{5 chức năng}: \cmd{users}, \cmd{monitor}, \cmd{alert}, \cmd{backup}, \cmd{scheduler}.
   \item Hai chế độ dùng qua SSH: giao diện menu (TUI) và dòng lệnh (CLI).
   \item Cài \textbf{trực tiếp lên máy Ubuntu thật} và tự vận hành bằng systemd timer; cảnh báo qua Telegram/email; sao lưu lên Google Drive; phát hiện và chặn tấn công SSH.
-  \item Kiểm thử tự động \textbf{75/75 PASS}; shellcheck không còn cảnh báo.
+  \item Kiểm thử tự động \textbf{83/83 PASS}; shellcheck không còn cảnh báo.
 \end{itemize}
 Ngoài đề tài 3, toolkit thực hành nội dung của các đề tài 1 (tiến trình), 4 (systemd), 5 (user \& bảo mật), 6 (SSH, tường lửa), 9 (giám sát, log) và 10 (cron, cảnh báo email).
 
@@ -180,7 +180,7 @@ Phần lớn IDS dùng thực tế là dựa trên luật vì dễ giải thích
 \textbf{Chức năng} & \textbf{Nhu cầu} & \textbf{Lệnh chính}\\\midrule
 \cmd{users} & Quản lý nhân viên, phân quyền & create, setup-dirs, sudo, lock, \textbf{offboard}, audit\\
 \cmd{monitor} & Ai làm gì, process treo, log & who, usage, \textbf{hogs}, renice, kill, \textbf{logcheck}, log-upload\\
-\cmd{alert} & Cảnh báo sự cố và tấn công & \textbf{check}, \textbf{security}, ban/unban, setup-telegram, setup-mail\\
+\cmd{alert} & Cảnh báo sự cố và tấn công & \textbf{watch} (thời gian thực), \textbf{check}, security, ban/unban, setup-telegram\\
 \cmd{backup} & Sao lưu, bản sao trên Drive & \textbf{run}, verify, restore, cloud-setup, cloud-list\\
 \cmd{scheduler} & Tự động hoá & \textbf{timers-install}, install (cron), maintenance\\
 \bottomrule
@@ -217,7 +217,7 @@ Phần lớn IDS dùng thực tế là dựa trên luật vì dễ giải thích
 \end{itemize}
 
 \section{Bộ phát hiện xâm nhập}
-\cmd{alert security} chạy mỗi 5 phút, gồm 9 luật:
+IDS chạy ở hai tầng: \textbf{thời gian thực} — dịch vụ nền \cmd{toolkit-ids} (\cmd{alert watch}) đọc log xác thực liên tục, xử lý từng dòng ngay khi xuất hiện; và \textbf{mỗi phút} — \cmd{alert check} so trạng thái hệ thống với bản chuẩn. Hai tầng dùng chung một bộ máy phân tích log, gồm 9 luật:
 \begin{table}[H]\centering\small
 \caption{Các luật phát hiện}
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{6.6cm}L}
@@ -235,7 +235,18 @@ Cổng mạng mới mở; process chạy từ \cmd{/tmp} & Cửa hậu, mã đ�
 \bottomrule
 \end{tabularx}
 \end{table}
-Dấu hiệu mới được gom vào một tin \textbf{[TẤN CÔNG]} gửi Telegram và email; mỗi dấu hiệu chỉ báo lại sau 30 phút. Nếu bật \cmd{AUTO\_BAN}, IP dò mật khẩu bị chặn bằng tường lửa, trừ các IP/dải mạng trong \cmd{IDS\_WHITELIST}. IDS đếm được cả các lần dò khi máy chỉ cho đăng nhập bằng key (đọc dòng \cmd{Invalid user}, \cmd{[preauth]}), và đếm theo kết nối để không tính trùng.
+Nếu bật \cmd{AUTO\_BAN}, IP dò mật khẩu bị chặn bằng tường lửa \textbf{trong khoảng 1 giây}, trừ các IP/dải mạng trong \cmd{IDS\_WHITELIST}. IDS đếm được cả các lần dò khi máy chỉ cho đăng nhập bằng key (đọc dòng \cmd{Invalid user}, \cmd{[preauth]}), và đếm theo kết nối để không tính trùng. Khi bỏ chặn (\cmd{alert unban}), toolkit ghi lại mốc thời gian: các lần thử \textit{trước} mốc không còn được tính nên IP không bị chặn lại oan; nếu IP tấn công tiếp thì bị chặn ngay và báo \textbf{CRITICAL ``IP tái phạm''}.
+
+\section{Chống spam cảnh báo}
+Mọi cảnh báo (tài nguyên và tấn công) đi qua một lớp chống nhiễu chung:
+\begin{itemize}
+  \item \textbf{Gộp tin:} các sự kiện xảy ra trong 5 giây được gộp thành một tin \textbf{[TẤN CÔNG]}/\textbf{[CẢNH BÁO]}.
+  \item \textbf{Chỉ báo lại khi nặng thêm:} dấu hiệu đã báo chỉ báo lại khi độ lớn tăng gấp đôi (5 $\rightarrow$ 10 lần dò) hoặc từ WARN lên CRITICAL; nếu vẫn còn sau 30 phút thì nhắc lại, kèm số lần đã gộp.
+  \item \textbf{Giới hạn tốc độ:} tối đa 6 tin / 10 phút, vượt thì gộp vào tin sau; tin CRITICAL luôn được gửi.
+  \item \textbf{Xác nhận:} CPU/RAM phải vượt ngưỡng 2 lần kiểm tra liên tiếp mới báo (bỏ qua tăng vọt chốc lát).
+  \item \textbf{Bỏ qua sự kiện vô nghĩa:} không báo thêm về IP đã bị chặn; gõ nhầm mật khẩu 1–2 lần rồi vào được không bị coi là bị chiếm tài khoản.
+\end{itemize}
+Tất cả ngưỡng trên chỉnh được trong \cmd{toolkit.conf} (\cmd{ALERT\_BATCH\_SEC}, \cmd{ALERT\_ESCALATE}, \cmd{ALERT\_REPEAT\_MIN}, \cmd{ALERT\_RATE\_MAX}, \cmd{ALERT\_CONFIRM}).
 
 \section{Mô hình triển khai}
 \begin{figure}[H]\centering
@@ -261,12 +272,13 @@ Toolkit cài thẳng lên máy Ubuntu thật để quản trị chính máy đó
 Phần này đi theo kịch bản demo \textit{``Một ngày làm việc từ xa của anh Hưng''} (chi tiết từng lệnh: \cmd{docs/KICH-BAN-DEMO.md}).
 
 \section{Triển khai lên máy thật}
-Một lệnh \cmd{sudo ./install.sh --server} cài gói cần thiết, chép toolkit vào \cmd{/opt}, hỏi vài câu (thư mục sao lưu, IP tin cậy, có tự chặn IP không, siết SSH), rồi bật 4 systemd timer:
+Một lệnh \cmd{sudo ./install.sh --server} cài gói cần thiết, chép toolkit vào \cmd{/opt}, hỏi vài câu (thư mục sao lưu, IP tin cậy, có tự chặn IP không, siết SSH), rồi bật một dịch vụ nền và 4 systemd timer:
 \begin{table}[H]\centering\small
 \caption{Lịch tự động}
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{3cm}L}\toprule
-\textbf{Timer} & \textbf{Lịch} & \textbf{Tác vụ}\\\midrule
-\cmd{toolkit-monitor} & mỗi 5 phút & kiểm tra tài nguyên, IDS, cảnh báo\\
+\textbf{Unit} & \textbf{Lịch} & \textbf{Tác vụ}\\\midrule
+\cmd{toolkit-ids} & chạy liên tục & phát hiện tấn công thời gian thực, tự chặn IP\\
+\cmd{toolkit-monitor} & mỗi phút & kiểm tra tài nguyên, toàn vẹn hệ thống, cảnh báo\\
 \cmd{toolkit-backup} & 02:00 & sao lưu + tải log lên Drive\\
 \cmd{toolkit-maintenance} & 03:30 & dọn tệp tạm, log cũ, cache gói\\
 \cmd{toolkit-report} & 07:00 thứ Hai & báo cáo tuần\\\bottomrule
@@ -288,8 +300,8 @@ Một lệnh \cmd{sudo ./install.sh --server} cài gói cần thiết, chép too
 \anhdemo{06-alert-check.png}{Cảnh báo process ngốn tài nguyên}{\texttt{sudo sysadmin alert check}.}
 \anhdemo[0.4]{07-telegram-canh-bao.png}{Tin cảnh báo trên điện thoại}{Ảnh chụp màn hình Telegram.}
 
-\textbf{Demo tấn công:} Laptop 2 thử đăng nhập bằng nhiều tên tài khoản với mật khẩu sai, rồi đăng nhập đúng bằng một tài khoản nhân viên. IDS phát hiện, tự chặn IP và gửi cảnh báo.
-\anhdemo{08-alert-security.png}{IDS phát hiện dò mật khẩu, nghi chiếm tài khoản và tự chặn IP}{\texttt{sudo sysadmin alert security} ngay sau khi Laptop 2 dò mật khẩu.}
+\textbf{Demo tấn công:} Laptop 2 gõ sai mật khẩu 3 lần rồi đăng nhập đúng (giả định kẻ xấu đoán trúng), sau đó dò hàng loạt tài khoản. Cửa sổ \cmd{journalctl -u toolkit-ids -f} trên Laptop 1 hiện ngay cảnh báo chiếm tài khoản, rồi IP bị chặn \textbf{giữa chừng} cuộc dò; điện thoại chỉ nhận một tin gộp. Bỏ chặn rồi cho Laptop 2 tấn công lại thì IP bị chặn ngay và được báo là IP tái phạm.
+\anhdemo{08-ids-realtime.png}{Phát hiện và chặn tấn công thời gian thực}{Laptop 1: \texttt{sudo journalctl -u toolkit-ids -f} trong lúc Laptop 2 tấn công (bước 8.4–8.5): dòng NGHI BỊ CHIẾM TÀI KHOẢN và ``ĐÃ TỰ ĐỘNG CHẶN''.}
 \anhdemo[0.4]{09-telegram-tan-cong.png}{Tin [TẤN CÔNG] trên điện thoại}{Ảnh chụp màn hình Telegram.}
 \anhdemo{10-alert-banned.png}{IP tấn công bị chặn bằng iptables}{\texttt{sudo sysadmin alert banned} và \texttt{sudo iptables -S INPUT | grep toolkit}.}
 
@@ -320,16 +332,17 @@ Script \cmd{tests/demo-test.sh} chạy trong Docker, mô phỏng trọn một ng
 Nền tảng & help, tham số sai, dry-run & 5/5\\
 users & tạo nhân viên, phân quyền, SGID, sticky, sudo, khoá, audit & 18/18\\
 monitor & process treo, usage, hogs, renice & 6/6\\
-alert & phát hiện sự cố, cooldown, ``đã ổn định'' & 7/7\\
+alert & phát hiện sự cố, chống gửi trùng, ``đã ổn định'' & 7/7\\
 IDS & dò mật khẩu (cả khi chỉ dùng key), chiếm tài khoản, tệp bị sửa, UID 0, process /tmp, chặn/bỏ chặn IP & 16/16\\
+IDS thời gian thực & chặn IP trong vài giây, leo thang, gộp tin, unban không chặn oan, IP tái phạm & 8/8\\
 backup & checksum, khôi phục, xoay vòng, tải lên Drive & 10/10\\
 scheduler & cron, bảo dưỡng & 7/7\\
 Nghỉ việc, dọn dẹp & kick, offboard, xoá dữ liệu demo & 6/6\\\midrule
-\textbf{Tổng} & & \textbf{75/75}\\\bottomrule
+\textbf{Tổng} & & \textbf{83/83}\\\bottomrule
 \end{tabularx}
 \end{table}
-Ngoài ra đã thử \cmd{install.sh --server} trên Ubuntu 24.04 có systemd thật: timer tự chạy đúng lịch, IDS đọc journald và tự chặn IP.
-\anhdemo{14-test-75-pass.png}{Kết quả bộ kiểm thử}{Dòng ``KẾT QUẢ: 75/75 PASS''.}
+Ngoài ra đã thử \cmd{install.sh --server} trên Ubuntu 24.04 có systemd thật: dịch vụ \cmd{toolkit-ids} tự chạy, đọc journald và chặn IP khoảng 1 giây sau lần dò thứ năm; timer chạy đúng lịch.
+\anhdemo{14-test-pass.png}{Kết quả bộ kiểm thử}{Dòng ``KẾT QUẢ: 83/83 PASS''.}
 
 \section{Kết quả vận hành thực tế}
 \begin{table}[H]\centering\small
@@ -349,8 +362,8 @@ Số lần đăng nhập SSH thất bại / số IP bị chặn & \dien{số}\\\
 \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{4.4cm}>{\raggedright\arraybackslash}p{4.4cm}L}\toprule
 \textbf{Công việc} & \textbf{Làm tay} & \textbf{Toolkit}\\\midrule
 Tạo 7 nhân viên + phân quyền & $\approx$ 50 lệnh, 20–30 phút & 2 lệnh, vài giây\\
-Phát hiện sự cố lúc 2 giờ sáng & Chờ người phản ánh & Báo trong $\le$ 5 phút\\
-Phát hiện dò mật khẩu SSH & Gần như không ai đọc log & Tự phát hiện và chặn\\
+Phát hiện sự cố lúc 2 giờ sáng & Chờ người phản ánh & Báo trong $\le$ 1 phút\\
+Phát hiện dò mật khẩu SSH & Gần như không ai đọc log & Tự chặn trong $\approx$ 1 giây\\
 Sao lưu ra ngoài máy & Dễ quên, không kiểm tra & Tự động mỗi đêm, có checksum\\
 Nhân viên nghỉ việc & Dễ sót bước & 1 lệnh, 5 bước\\\bottomrule
 \end{tabularx}

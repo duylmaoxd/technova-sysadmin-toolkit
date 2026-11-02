@@ -654,7 +654,7 @@ monitor_logcheck() {
   else status OK "Không có (hoặc tường lửa chưa bật ghi log)"; fi
 
   status_summary
-  printf '\n%sPhát hiện tấn công theo thời gian thực: %s alert security (cron chạy mỗi 5 phút)%s\n' "$C_DIM" "$PROG" "$C_RESET"
+  printf '\n%sPhát hiện tấn công thời gian thực: %s alert watch (dịch vụ nền toolkit-ids)%s\n' "$C_DIM" "$PROG" "$C_RESET"
   return 0
 }
 

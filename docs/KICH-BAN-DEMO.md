@@ -40,7 +40,7 @@ Làm một lần:
 | 7 | Kiểm tra lịch tự động | `systemctl list-timers 'toolkit-*'` → 4 timer |
 
 Sau đó **để máy chạy liên tục 3–7 ngày**; các thành viên thỉnh thoảng SSH vào bằng tài khoản nhân viên để làm việc.
-Mỗi đêm toolkit tự sao lưu, tải log lên Drive và bảo dưỡng; mỗi 5 phút tự kiểm tra tài nguyên và phát hiện tấn công.
+Mỗi đêm toolkit tự sao lưu, tải log lên Drive và bảo dưỡng; dịch vụ nền phát hiện tấn công liên tục, và mỗi phút kiểm tra tài nguyên.
 Đây là số liệu "vận hành thực tế" trình bày ở bước 9.
 
 > Nếu mạng nhà có IP public, có thể (tuỳ chọn) port-forward cổng 22 vào máy chủ vài ngày để ghi nhận các lần dò mật khẩu
@@ -52,7 +52,7 @@ Mỗi đêm toolkit tự sao lưu, tải log lên Drive và bảo dưỡng; mỗ
 - [ ] `sudo sysadmin backup cloud-list`: có bản sao lưu và gói log của các đêm trước
 - [ ] `sudo sysadmin alert test`: điện thoại nhận được tin
 - [ ] Laptop 2 SSH vào được bằng `cuonglv` và `binhtt`; `sudo sysadmin alert banned` không chặn nhầm ai
-- [ ] Chạy bộ test trong Docker một lần (bước 10), chụp màn hình 75/75 PASS để dự phòng
+- [ ] Chạy bộ test trong Docker một lần (bước 10), chụp màn hình 83/83 PASS để dự phòng
 
 ---
 
@@ -101,7 +101,7 @@ Mỗi đêm toolkit tự sao lưu, tải log lên Drive và bảo dưỡng; mỗ
 | 5.2 | `sudo sysadmin monitor kill <PID>` → **y** | Process kết thúc |
 | 5.3 | `sudo sysadmin alert check` | Tin **[ĐÃ ỔN ĐỊNH]** tới điện thoại |
 
-**Lời thoại:** *"Lúc 2 giờ sáng cũng vậy: timer chạy mỗi 5 phút, anh Hưng không cần thức canh máy."*
+**Lời thoại:** *"Lúc 2 giờ sáng cũng vậy: timer kiểm tra mỗi phút, anh Hưng không cần thức canh máy. CPU tăng vọt chốc lát thì không báo — phải vượt ngưỡng 2 lần liên tiếp, tránh báo nhầm."*
 
 ---
 
@@ -137,22 +137,26 @@ Mỗi đêm toolkit tự sao lưu, tải log lên Drive và bảo dưỡng; mỗ
 | 8.2 | **Laptop 1:** `sudo sysadmin users offboard binhtt` | 5 bước: khoá, ngắt phiên, thu sudo, xoá crontab, lưu trữ home — **phiên trên Laptop 2 bị ngắt ngay** |
 | 8.3 | **Laptop 2:** `ssh binhtt@<IP>` lần nữa | Không vào được |
 
-### 8b. Có người dò mật khẩu SSH
+### 8b. Máy chủ bị tấn công — phát hiện và chặn THỜI GIAN THỰC
 
-**Lời thoại:** *"Bây giờ Laptop 2 đóng vai kẻ xấu: thử đăng nhập bằng các tên tài khoản phổ biến với mật khẩu đoán bừa."*
+**Chuẩn bị:** trên Laptop 1 mở thêm một cửa sổ terminal, SSH vào máy chủ và chạy
+`sudo journalctl -u toolkit-ids -f` (hoặc `sudo sysadmin alert watch`). Cửa sổ này hiện sự kiện ngay khi xảy ra.
+
+**Lời thoại:** *"Bây giờ Laptop 2 đóng vai kẻ xấu. Toolkit không chờ lịch kiểm tra mà đọc log liên tục."*
 
 | Bước | Thao tác | Kết quả mong đợi |
 |---|---|---|
-| 8.4 | **Laptop 2:** thử các tài khoản không tồn tại, mỗi lần gõ sai mật khẩu:<br>`for u in admin oracle test guest postgres; do ssh -o NumberOfPasswordPrompts=2 $u@<IP>; done` | Lần nào cũng bị từ chối |
-| 8.5 | **Laptop 2:** đăng nhập **đúng** `ssh cuonglv@<IP>` rồi `exit` | Giả định kẻ xấu đã đoán trúng mật khẩu của một nhân viên |
-| 8.6 | **Laptop 1:** `sudo sysadmin alert security` | **Dò mật khẩu SSH: N lần từ IP Laptop 2 · Dò tên tài khoản · [FAIL] NGHI BỊ CHIẾM TÀI KHOẢN: cuonglv … · Đã TỰ ĐỘNG CHẶN IP**; điện thoại nhận tin **[TẤN CÔNG]** |
-| 8.7 | **Laptop 2:** `ssh cuonglv@<IP>` | Treo rồi hết thời gian chờ: **đã bị tường lửa chặn** |
-| 8.8 | **Laptop 1:** `sudo sysadmin alert banned` · `sudo iptables -S INPUT \| grep toolkit` | IP Laptop 2 nằm trong danh sách chặn (đề tài 6: firewall) |
-| 8.9 | **Laptop 1:** `sudo sysadmin monitor logcheck 1` | Báo cáo log 1 giờ qua: top IP dò mật khẩu, user bị thử, phiên thành công, sudo (đề tài 9) |
-| 8.10 | **Laptop 1:** `sudo sysadmin alert unban <IP Laptop 2>` | Laptop 2 vào lại được |
+| 8.4 | **Laptop 2:** `ssh cuonglv@<IP>`, gõ **sai** mật khẩu 3 lần; rồi `ssh cuonglv@<IP>` lần nữa và gõ **đúng** | Cửa sổ theo dõi hiện ngay **[FAIL] NGHI BỊ CHIẾM TÀI KHOẢN: cuonglv đăng nhập thành công từ … sau 3 lần thất bại**; điện thoại nhận tin **[TẤN CÔNG]** sau vài giây |
+| 8.5 | **Laptop 2:** dò các tài khoản không tồn tại:<br>`for u in admin oracle test guest postgres; do ssh -o NumberOfPasswordPrompts=2 $u@<IP>; done` | Sau vài lần thử, cửa sổ theo dõi hiện **Dò mật khẩu SSH … → ĐÃ TỰ ĐỘNG CHẶN**; các lần `ssh` sau đó **treo** vì đã bị tường lửa chặn — chặn **giữa chừng cuộc tấn công** |
+| 8.6 | **Điện thoại** | Chỉ **1 tin** cho cả loạt thử (gộp dò mật khẩu + dò tên tài khoản), không bị spam mỗi lần thử một tin |
+| 8.7 | **Laptop 1:** `sudo sysadmin alert banned` · `sudo iptables -S INPUT \| grep toolkit` | IP Laptop 2 nằm trong danh sách chặn (đề tài 6: firewall) |
+| 8.8 | **Laptop 1:** `sudo sysadmin monitor logcheck 1` | Báo cáo log 1 giờ qua: top IP dò mật khẩu, user bị thử, phiên thành công, sudo (đề tài 9) |
+| 8.9 | **Laptop 1:** `sudo sysadmin alert unban <IP Laptop 2>` → **Laptop 2:** `ssh cuonglv@<IP>` | Laptop 2 vào lại được; các lần thử cũ không làm IP bị chặn lại oan |
+| 8.10 | **Laptop 2:** chạy lại vòng lặp ở bước 8.5 | Bị chặn lại ngay; điện thoại nhận tin **CRITICAL "IP TÁI PHẠM, đã từng bị chặn 1 lần"** |
+| 8.11 | **Laptop 1:** `sudo sysadmin alert unban <IP Laptop 2>` | Trả lại kết nối cho Laptop 2 |
 
-**Lời thoại:** *"Toolkit vẫn bắt được kiểu dò này kể cả khi máy chủ chỉ cho đăng nhập bằng SSH key,
-vì nó đọc cả các dòng `Invalid user` và `[preauth]`, không chỉ `Failed password`."*
+**Lời thoại:** *"Toolkit chặn trong khoảng một giây kể từ lần thử thứ năm, kể cả khi máy chủ chỉ cho đăng nhập bằng SSH key —
+vì nó đọc cả các dòng `Invalid user` và `[preauth]`. Còn tin nhắn thì được gộp và chỉ gửi lại khi tình hình nặng thêm, nên không bị spam."*
 
 ---
 
@@ -167,7 +171,7 @@ vì nó đọc cả các dòng `Invalid user` và `[preauth]`, không chỉ `Fai
 
 **Đánh giá lợi ích automation (yêu cầu của đề tài 3):** so sánh làm tay với chạy script —
 tạo 7 nhân viên kèm phân quyền (≈ 20 phút → vài giây); sao lưu + kiểm tra + đẩy lên Drive mỗi đêm (≈ 10 phút/ngày → 0);
-canh máy 24/7 (không thể làm tay → timer 5 phút).
+canh máy 24/7 (không thể làm tay → dịch vụ nền + timer mỗi phút).
 
 ---
 
@@ -177,19 +181,20 @@ canh máy 24/7 (không thể làm tay → timer 5 phút).
 docker run --rm --cap-add SYS_NICE --cap-add NET_ADMIN -v "$PWD/tests:/tests:ro" \
   technova/sysadmin-toolkit:1.0 bash /tests/demo-test.sh --yes
 ```
-Kết quả: **KẾT QUẢ: 75/75 PASS** (khoảng 1 phút). Bộ test tạo và xoá user nên **chỉ chạy trong Docker**, không chạy trên máy chủ thật.
+Kết quả: **KẾT QUẢ: 83/83 PASS** (khoảng 2 phút). Bộ test tạo và xoá user nên **chỉ chạy trong Docker**, không chạy trên máy chủ thật.
 
 | Nhóm | Mã | Nội dung kiểm chứng |
 |---|---|---|
 | Nền tảng | T01–T05 | Phiên bản; help đủ 5 chức năng; help module tự sinh; từ chối tham số sai; dry-run không tạo user |
 | users | T06–T23 | Tạo 7 nhân viên; đúng phòng ban; hungnv có sudo; bắt buộc đổi mật khẩu; file mật khẩu 600; chạy lại không trùng; dev/data/qa = 2770; chung = 1777; quyền giữa các phòng ban; SGID; sticky; cấp/thu sudo; khoá/mở khoá; audit |
 | monitor | T24–T29 | Mô phỏng process treo; usage; hogs; top; who/overview/troubleshoot; renice về 19 |
-| alert | T30–T36 | Phát hiện process ngốn tài nguyên; alerts.log; cooldown; kill; "ĐÃ ỔN ĐỊNH"; metrics.csv; đổi ngưỡng |
+| alert | T30–T36 | Phát hiện process ngốn tài nguyên; alerts.log; chống spam (chưa nặng thêm thì không gửi lại); kill; "ĐÃ ỔN ĐỊNH"; metrics.csv; đổi ngưỡng |
 | IDS | T37–T52 | Baseline; hệ thống sạch không báo nhầm; dò mật khẩu theo IP; **dò SSH khi máy chỉ cho đăng nhập bằng key**; password spraying; đăng nhập sau khi dò; /etc/passwd bị sửa; tài khoản UID 0; process chạy từ /tmp; gửi [TẤN CÔNG]; chống spam; **whitelist theo dải mạng**; logcheck; ban / banned / unban |
-| backup | T53–T62 | tar.gz; SHA-256; chứa srv/technova; verify; khôi phục; xoay vòng; Drive sẵn sàng; backup + log lên Drive; cloud-list |
-| scheduler | T63–T69 | Khối cron; đủ 5 job; job tuỳ chỉnh thoát `%`; explain; từ chối cron sai; bảo dưỡng; gỡ lịch |
-| Nghỉ việc | T70–T73 | kick; offboard khoá tài khoản; lưu trữ home; từ chối offboard root |
-| Dọn dẹp | T74–T75 | Xoá nhân viên demo; xoá /srv/technova và các nhóm |
+| IDS thời gian thực | T53–T60 | Báo ngay khi đủ 5 lần dò; thêm 1 lần không gửi lại; nặng gấp đôi thì báo lại; **chặn IP trong vài giây**; 8 lần thử chỉ 1 tin; **unban không bị chặn lại oan**; tấn công lại bị chặn ngay; **IP tái phạm báo CRITICAL** |
+| backup | T61–T70 | tar.gz; SHA-256; chứa srv/technova; verify; khôi phục; xoay vòng; Drive sẵn sàng; backup + log lên Drive; cloud-list |
+| scheduler | T71–T77 | Khối cron; đủ 5 job; job tuỳ chỉnh thoát `%`; explain; từ chối cron sai; bảo dưỡng; gỡ lịch |
+| Nghỉ việc | T78–T81 | kick; offboard khoá tài khoản; lưu trữ home; từ chối offboard root |
+| Dọn dẹp | T82–T83 | Xoá nhân viên demo; xoá /srv/technova và các nhóm |
 
 Phần Google Drive trong bộ test dùng remote rclone kiểu local nên không gửi dữ liệu ra Internet.
 
@@ -215,7 +220,7 @@ Phần Google Drive trong bộ test dùng remote rclone kiểu local nên không
 |---|---|
 | Mạng phòng học chặn các máy thấy nhau | Phát Wi-Fi từ điện thoại của nhóm, hoặc dùng Tailscale (IP `100.x.x.x`) |
 | Lỡ chặn nhầm IP của Laptop 1 | Từ Laptop 2 hoặc ngồi tại máy chủ: `sudo sysadmin alert unban <IP>`; thêm IP vào `IDS_WHITELIST` |
-| Bước 8.6 không chặn IP Laptop 2 | Kiểm tra `IDS_WHITELIST` không chứa IP/dải mạng của Laptop 2 và `AUTO_BAN=yes`; nếu đã cảnh báo trong 30 phút trước thì xoá `/opt/sysadmin-toolkit/logs/state/ids-seen` |
+| Bước 8.5 không chặn IP Laptop 2 | Kiểm tra `IDS_WHITELIST` không chứa IP/dải mạng của Laptop 2, `AUTO_BAN=yes`, và dịch vụ đang chạy: `systemctl status toolkit-ids` |
 | Không có Internet nên không có Telegram/Drive | Cảnh báo vẫn ghi vào `alerts.log` và journald: `sudo sysadmin alert history`; bản sao lưu vẫn ở `/var/backups/sysadmin-toolkit` |
 | Máy chủ hỏng hẳn | Dự phòng bằng Docker trên Laptop 1: `docker compose up -d --build` rồi `ssh -p 2222 hung@localhost`, demo lại các bước 3–8 |
 | Menu whiptail: Enter không đóng hộp kết quả | Nhấn **Tab** rồi Enter, hoặc **Esc** |

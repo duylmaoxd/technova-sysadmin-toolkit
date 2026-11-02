@@ -102,9 +102,9 @@ fi
 # -------------------------------------------------------- 3. alert: cảnh báo
 step "3. alert — cảnh báo tức thời"
 rm -f "$(dirname "$CONF")/../logs/state/alert."* 2>/dev/null
-check "alert check phát hiện process ngốn tài nguyên" bash -c "'$SA' --no-color alert check | grep -q 'Process ngốn tài nguyên'"
+check "alert check phát hiện process ngốn tài nguyên" bash -c "'$SA' --no-color alert check >/tmp/ac1.out 2>&1; grep -q 'Process ngốn tài nguyên' /tmp/ac1.out"
 check "Cảnh báo được ghi vào alerts.log" bash -c "grep -q 'CẢNH BÁO' $(dirname "$CONF")/../logs/alerts.log"
-check "Cooldown: lần kiểm tra kế tiếp không gửi lại" bash -c "'$SA' --no-color alert check 2>&1 | grep -q 'chờ đủ'"
+check "Chống spam: sự cố chưa nặng thêm thì không gửi lại" bash -c "'$SA' --no-color alert check >/tmp/ac2.out 2>&1; grep -q 'không gửi lại' /tmp/ac2.out"
 sa monitor kill "$P"
 sleep 1
 check "monitor kill dừng process treo" bash -c "! kill -0 $P 2>/dev/null"
@@ -154,6 +154,41 @@ if iptables -L INPUT -n >/dev/null 2>&1; then
 else
   echo "  ${D}(bỏ qua ban/unban — thiếu quyền tường lửa, chạy docker với --cap-add NET_ADMIN)${Z}"
 fi
+
+# ------------------------------- 3''. alert watch: thời gian thực, chống spam, unban
+step "3''. alert watch — chặn & báo THỜI GIAN THỰC, chống spam, bỏ chặn"
+ALOG=$(dirname "$CONF")/../logs/alerts.log
+cp "$CONF" /tmp/toolkit.conf.bak
+nalert() { grep -c "$1" "$ALOG" 2>/dev/null || true; }
+fails() { local i; for ((i = $2; i <= $3; i++)); do logger -p authpriv.notice -t "sshd[77$i]" "Failed password for root from $1 port 6$i ssh2"; done; }
+("$SA" --no-color alert watch >/tmp/ids-watch.log 2>&1 &)
+sleep 3
+# Leo thang: 5 lần → báo; lần 6 → không báo lại; 10 lần (gấp đôi) → báo lại "tăng từ 5"
+fails 192.0.2.55 1 5; sleep 7
+check "Watch: báo ngay khi đủ 5 lần dò mật khẩu" bash -c "[[ \$(grep -c '192.0.2.55' $ALOG) -eq 1 ]]"
+fails 192.0.2.55 6 6; sleep 7
+check "Chống spam: thêm 1 lần thử không gửi lại" bash -c "[[ \$(grep -c '192.0.2.55' $ALOG) -eq 1 ]]"
+fails 192.0.2.55 7 10; sleep 7
+check "Chống spam: nặng gấp đôi (10 lần) thì báo lại" bash -c "grep '192.0.2.55' $ALOG | tail -1 | grep -q 'tăng từ 5'"
+if iptables -L INPUT -n >/dev/null 2>&1; then
+  sed -i 's/^AUTO_BAN=.*/AUTO_BAN="yes"/' "$CONF"; sleep 6 # dịch vụ nền tự nạp lại cấu hình
+  n0=$(wc -l <"$ALOG")
+  fails 192.0.2.66 1 8; sleep 3
+  check "Watch: chặn IP trong vài giây (không chờ timer)" bash -c "iptables -S INPUT | grep -q '192.0.2.66.*sysadmin-toolkit'"
+  sleep 5
+  check "Gộp tin: 8 lần thử (dò mật khẩu + chặn IP) → chỉ 1 tin cảnh báo" bash -c "[[ \$(( \$(wc -l <$ALOG) - $n0 )) -eq 1 ]]"
+  sa alert unban 192.0.2.66
+  sa alert security
+  check "Unban: lần thử CŨ không làm IP bị chặn lại oan" bash -c "! iptables -S INPUT | grep -q 192.0.2.66"
+  sleep 6; fails 192.0.2.66 11 18; sleep 3
+  check "Tấn công lại sau unban → bị chặn lại ngay" bash -c "iptables -S INPUT | grep -q 192.0.2.66"
+  check "IP tái phạm được báo NGHIÊM TRỌNG" grep -q 'TÁI PHẠM' /tmp/ids-watch.log
+  sa alert unban 192.0.2.66
+else
+  echo "  ${D}(bỏ qua phần chặn IP thời gian thực — chạy docker với --cap-add NET_ADMIN)${Z}"
+fi
+pkill -f "alert watch" 2>/dev/null; sleep 1
+cp /tmp/toolkit.conf.bak "$CONF"
 
 # -------------------------------------------------------------- 4. backup
 step "4. backup — sao lưu tài sản số"

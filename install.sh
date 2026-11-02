@@ -4,7 +4,7 @@
 #
 #    sudo ./install.sh               cài vào /opt/sysadmin-toolkit + lệnh "sysadmin"
 #    sudo ./install.sh --deps        cài thêm gói phụ thuộc (dialog, sysstat, at, cron, msmtp, curl...)
-#    sudo ./install.sh --timers      bật systemd timer: kiểm tra & cảnh báo 5 phút/lần + sao lưu hằng ngày
+#    sudo ./install.sh --timers      bật systemd: phát hiện tấn công thời gian thực + kiểm tra mỗi phút + sao lưu hằng ngày
 #    sudo ./install.sh --server      TRIỂN KHAI LÊN MÁY CHỦ THẬT: cài gói + SSH, hỏi vài câu rồi tự cấu hình
 #                                    (thư mục sao lưu, IP tin cậy, tự chặn IP, lịch tự động, chống ngủ...)
 #    sudo ./install.sh --uninstall   gỡ cài đặt (giữ nguyên các bản sao lưu)

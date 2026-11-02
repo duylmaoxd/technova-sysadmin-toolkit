@@ -32,6 +32,8 @@ if (($# == 0)); then
   ssh-keygen -A >/dev/null
   echo "[entrypoint] technova-core-srv sẵn sàng — SSH vào cổng 22 của container."
   [[ -n $ADMIN_PASSWORD ]] || echo "[entrypoint] Chưa đặt ADMIN_PASSWORD → dùng: docker exec -it <container> sysadmin"
+  # Container không có systemd → tự chạy nền bộ phát hiện tấn công thời gian thực
+  nohup /opt/sysadmin-toolkit/sysadmin.sh --no-color alert watch >>/opt/sysadmin-toolkit/logs/ids-watch.log 2>&1 &
   # không dùng -e: để sshd ghi log vào syslog → /var/log/auth.log (cần cho phát hiện tấn công)
   exec /usr/sbin/sshd -D
 fi

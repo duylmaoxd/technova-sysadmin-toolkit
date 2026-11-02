@@ -7,14 +7,14 @@
 #  cài lại / gỡ bỏ không ảnh hưởng job khác):
 #    02:00 hằng ngày   sao lưu dữ liệu (backup run)
 #    03:30 hằng ngày   bảo dưỡng: dọn file tạm, log cũ, cache gói, xoay vòng backup
-#    mỗi 5 phút        kiểm tra sự cố & gửi cảnh báo (alert check)
+#    mỗi phút          kiểm tra sự cố & gửi cảnh báo (alert check)
 #    07:00 thứ Hai     báo cáo hệ thống tuần (monitor report)
 #  Tương đương bằng systemd timer: scheduler timers-install. Hẹn 1 lần: at.
 # =============================================================================
 
 register_module scheduler 5 "Tự động hoá bảo dưỡng & lập lịch (cron, at, timer)"
 register_action list      ""  "Xem mọi lịch: crontab, /etc/cron.d, systemd timer, hàng đợi at"
-register_action install   "r" "Cài lịch tự động: sao lưu, bảo dưỡng hằng ngày, cảnh báo 5 phút, báo cáo tuần" "Lịch sao lưu=$CRON_BACKUP" "Lịch kiểm tra & cảnh báo=$CRON_CHECK" "Lịch báo cáo=$CRON_REPORT" "Lịch bảo dưỡng=$CRON_MAINT" "Lịch kiểm tra & upload log=$CRON_LOGS"
+register_action install   "r" "Cài lịch tự động: sao lưu, bảo dưỡng hằng ngày, kiểm tra & cảnh báo mỗi phút, báo cáo tuần" "Lịch sao lưu=$CRON_BACKUP" "Lịch kiểm tra & cảnh báo=$CRON_CHECK" "Lịch báo cáo=$CRON_REPORT" "Lịch bảo dưỡng=$CRON_MAINT" "Lịch kiểm tra & upload log=$CRON_LOGS"
 register_action maintenance "rd" "Bảo dưỡng ngay: dọn /tmp, log journald cũ, cache gói, core dump, xoay vòng backup" "Xoá file tạm cũ hơn (ngày)=$MAINT_TMP_DAYS"
 register_action remove    "r" "Gỡ toàn bộ lịch cron do toolkit tạo"
 register_action add       ""  "Thêm một cron job tuỳ chỉnh" "Lịch (5 trường)=*/10 * * * *" "Lệnh=date >> /tmp/cron-test.log"
@@ -23,7 +23,7 @@ register_action at        ""  "Hẹn chạy MỘT LẦN bằng at" "Thời đi�
 register_action at-list   ""  "Các công việc at đang chờ"
 register_action at-remove ""  "Huỷ một công việc at" "Mã công việc=@_pick_atjob"
 register_action log       ""  "Log thực thi của các job (cron.log của toolkit + log dịch vụ cron)" "Số dòng=30"
-register_action timers-install "rd" "Dùng systemd timer thay cron (4 timer: cảnh báo 5 phút, sao lưu + log 02:00, bảo dưỡng 03:30, báo cáo thứ Hai)"
+register_action timers-install "rd" "Dùng systemd thay cron: dịch vụ phát hiện tấn công thời gian thực + 4 timer (kiểm tra mỗi phút, sao lưu + log 02:00, bảo dưỡng 03:30, báo cáo thứ Hai)"
 register_action timers-remove  "rd" "Gỡ các systemd timer của toolkit"
 
 CRON_BEGIN="# >>> sysadmin-toolkit >>>"
@@ -348,6 +348,7 @@ scheduler_maintenance() {
 TK_TIMERS=(toolkit-monitor.timer toolkit-backup.timer toolkit-maintenance.timer toolkit-report.timer)
 TK_UNITS=()
 for _t in "${TK_TIMERS[@]}"; do TK_UNITS+=("${_t%.timer}.service" "$_t"); done
+TK_UNITS+=(toolkit-ids.service) # dịch vụ chạy nền: phát hiện tấn công thời gian thực
 unset _t
 
 scheduler_timers_install() {
@@ -367,17 +368,18 @@ scheduler_timers_install() {
     sed "s|@TOOLKIT_DIR@|$TOOLKIT_DIR|g" "$src" | write_file "/etc/systemd/system/$u" 644
   done
   run systemctl daemon-reload
-  run systemctl enable --now "${TK_TIMERS[@]}"
+  run systemctl enable --now "${TK_TIMERS[@]}" toolkit-ids.service
   [[ $DRY_RUN == 1 ]] && return 0
   log_ok "Đã cài timer. Kiểm tra: systemctl list-timers 'toolkit-*'"
   systemctl list-timers 'toolkit-*' --no-pager || true
+  printf '\n  Phát hiện tấn công thời gian thực: toolkit-ids.service — %s (xem: journalctl -u toolkit-ids -f)\n' "$(systemctl is-active toolkit-ids 2>/dev/null || true)"
 }
 
 scheduler_timers_remove() {
   local u
   require_root
   need_systemd || return 1
-  run systemctl disable --now "${TK_TIMERS[@]}" 2>/dev/null || true
+  run systemctl disable --now "${TK_TIMERS[@]}" toolkit-ids.service 2>/dev/null || true
   for u in "${TK_UNITS[@]}"; do
     run rm -f "/etc/systemd/system/$u"
   done

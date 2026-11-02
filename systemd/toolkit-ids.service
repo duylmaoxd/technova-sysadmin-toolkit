@@ -1,0 +1,16 @@
+# Tạo bởi LinuxAdmin Toolkit — phát hiện tấn công THỜI GIAN THỰC (chạy nền liên tục)
+[Unit]
+Description=LinuxAdmin Toolkit: phát hiện tấn công thời gian thực (đọc log liên tục, tự chặn IP)
+Documentation=file://@TOOLKIT_DIR@/README.md
+After=network-online.target systemd-journald.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=@TOOLKIT_DIR@/sysadmin.sh --no-color alert watch
+Restart=always
+RestartSec=5
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

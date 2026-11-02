@@ -19,13 +19,13 @@ Cột "Bước" ứng với [`docs/KICH-BAN-DEMO.md`](../KICH-BAN-DEMO.md), nên
 | `05-monitor-hogs.png` | 4.3 | `sysadmin monitor usage` và `sysadmin monitor hogs` |
 | `06-alert-check.png` | 5.1 | `sudo sysadmin alert check` |
 | `07-telegram-canh-bao.png` | 5.1 | Điện thoại: tin cảnh báo |
-| `08-alert-security.png` | 8.6 | `sudo sysadmin alert security` sau khi Laptop 2 dò mật khẩu |
+| `08-ids-realtime.png` | 8.4–8.5 | Laptop 1: `sudo journalctl -u toolkit-ids -f` lúc Laptop 2 tấn công (thấy NGHI BỊ CHIẾM TÀI KHOẢN và ĐÃ TỰ ĐỘNG CHẶN) |
 | `09-telegram-tan-cong.png` | 8.6 | Điện thoại: tin [TẤN CÔNG] |
-| `10-alert-banned.png` | 8.8 | `sudo sysadmin alert banned` + `sudo iptables -S INPUT \| grep toolkit` |
+| `10-alert-banned.png` | 8.7 | `sudo sysadmin alert banned` + `sudo iptables -S INPUT \| grep toolkit` |
 | `11-backup-run.png` | 6.1 | `sudo sysadmin backup run` |
 | `12-drive-backups.png` | 6.2 | Google Drive: `TechNova-Server/technova-core-srv/backups` |
 | `13-journalctl-backup.png` | 7.3 | `journalctl -u toolkit-backup --since "3 days ago" \| tail -20` |
-| `14-test-75-pass.png` | 10 | Bộ test Docker: dòng "KẾT QUẢ: 75/75 PASS" |
+| `14-test-pass.png` | 10 | Bộ test Docker: dòng "KẾT QUẢ: 83/83 PASS" |
 
 Ảnh 02, 12, 13 cần máy chủ đã tự chạy vài ngày.
 
